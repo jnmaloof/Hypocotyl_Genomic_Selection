@@ -1,0 +1,35 @@
+---
+title: "get data"
+author: "Julin Maloof"
+date: "11/19/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+get data
+
+```{r}
+### bringing files for phenos, genos, K matrices
+both.phenos <- as.matrix(read.csv(file="~/Documents/Lab Data/Daniele/big_hyps/big_hyps_associations/both.small.csv",row.names=1))
+both.snps <- as.matrix(read.csv(file="~/Documents/Lab Data/Daniele/big_hyps/big_hyps_associations/both.snps.csv",row.names=1,as.is = TRUE))
+both.snps.K <- as.matrix(read.csv(file="~/Documents/Lab Data/Daniele/big_hyps/big_hyps_associations/both.snps.K.csv",row.names = 1))
+
+head(both.phenos)
+head(both.snps[,1:10])
+head(both.snps.K[,1:10])
+
+both.phenos <- both.phenos[,-1]
+both.snps.K <- both.snps.K[,-1]
+```
+
+merge
+```{r}
+both.snps.t <- t(both.snps)
+row.names(both.snps.t) <- sub("X","",row.names(both.snps.t))
+pheno.geno <- merge(both.phenos,both.snps.t,by="row.names")
+head(pheno.geno[,1:10])
+save(pheno.geno,file="pheno.geno.Rdata")
+```
