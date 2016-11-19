@@ -199,70 +199,9 @@ options(mc.cores = parallel::detectCores())</code></pre>
 <p>get data</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyMjIGJyaW5naW5nIGZpbGVzIGZvciBwaGVub3MsIGdlbm9zLCBLIG1hdHJpY2VzXG5ib3RoLnBoZW5vcyA8LSBhcy5tYXRyaXgocmVhZC5jc3YoZmlsZT1cIn4vRG9jdW1lbnRzL0xhYiBEYXRhL0RhbmllbGUvYmlnX2h5cHMvYmlnX2h5cHNfYXNzb2NpYXRpb25zL2JvdGguc21hbGwuY3N2XCIscm93Lm5hbWVzPTEpKVxuYm90aC5zbnBzIDwtIGFzLm1hdHJpeChyZWFkLmNzdihmaWxlPVwifi9Eb2N1bWVudHMvTGFiIERhdGEvRGFuaWVsZS9iaWdfaHlwcy9iaWdfaHlwc19hc3NvY2lhdGlvbnMvYm90aC5zbnBzLmNzdlwiLHJvdy5uYW1lcz0xLGFzLmlzID0gVFJVRSkpXG5ib3RoLnNucHMuSyA8LSBhcy5tYXRyaXgocmVhZC5jc3YoZmlsZT1cIn4vRG9jdW1lbnRzL0xhYiBEYXRhL0RhbmllbGUvYmlnX2h5cHMvYmlnX2h5cHNfYXNzb2NpYXRpb25zL2JvdGguc25wcy5LLmNzdlwiLHJvdy5uYW1lcyA9IDEpKVxuaGVhZChib3RoLnBoZW5vcylcbmBgYCJ9 -->
-<pre class="r"><code>### bringing files for phenos, genos, K matrices
-both.phenos &lt;- as.matrix(read.csv(file=&quot;~/Documents/Lab Data/Daniele/big_hyps/big_hyps_associations/both.small.csv&quot;,row.names=1))
-both.snps &lt;- as.matrix(read.csv(file=&quot;~/Documents/Lab Data/Daniele/big_hyps/big_hyps_associations/both.snps.csv&quot;,row.names=1,as.is = TRUE))
-both.snps.K &lt;- as.matrix(read.csv(file=&quot;~/Documents/Lab Data/Daniele/big_hyps/big_hyps_associations/both.snps.K.csv&quot;,row.names = 1))
-head(both.phenos)</code></pre>
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxubG9hZChcInBoZW5vLmdlbm8uUmRhdGFcIilcbmBgYCJ9 -->
+<pre class="r"><code>load(&quot;pheno.geno.Rdata&quot;)</code></pre>
 <!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiICAgICAgIHJvd25hbWVzLmJvdGguZWZmZWN0cy4gaGlnaC5SRlIgbG93LlJGUi5yZXNwb25zZSAgbG93LlJGUiAgICBzbG9wZSAgICAgIHJlc2lkXG4xMDAwMDAgICAgICAgICAgICAgICAgIDEwMDAwMCAyLjY2NDk4MiAgICAgICAgMS42MjQ4NDM4IDQuMjg5ODI2IDEuNjA5NzAyICAwLjI1NTM0NjJcbjU4MzcgICAgICAgICAgICAgICAgICAgICA1ODM3IDMuMjY1NjkwICAgICAgICAwLjg2NjI4NzcgNC4xMzE5NzggMS4yNjUyNjkgLTAuMjkwNzczNFxuNjAwOCAgICAgICAgICAgICAgICAgICAgIDYwMDggMi45MzY3NzkgICAgICAgIDEuMDgxNDcyMCA0LjAxODI1MSAxLjM2ODI1MSAtMC4xOTE5MDYyXG42MDA5ICAgICAgICAgICAgICAgICAgICAgNjAwOSAzLjE0MDkxMyAgICAgICAgMi4yMTIxMzIyIDUuMzUzMDQ1IDEuNzA0Mjk2ICAxLjAxMDk0NDNcbjYwMTYgICAgICAgICAgICAgICAgICAgICA2MDE2IDYuMDQzMjE0ICAgICAgICAxLjA5MjE3MTcgNy4xMzUzODYgMS4xODA3MjcgIDAuOTE3MzYzMVxuNjAzOSAgICAgICAgICAgICAgICAgICAgIDYwMzkgNC42NzE3NzYgICAgICAgIDAuNzgwNDk2NCA1LjQ1MjI3MiAxLjE2NzA2NiAgMC4xMjA2ODc4XG4ifQ== -->
-<pre><code>       rownames.both.effects. high.RFR low.RFR.response  low.RFR    slope      resid
-100000                 100000 2.664982        1.6248438 4.289826 1.609702  0.2553462
-5837                     5837 3.265690        0.8662877 4.131978 1.265269 -0.2907734
-6008                     6008 2.936779        1.0814720 4.018251 1.368251 -0.1919062
-6009                     6009 3.140913        2.2121322 5.353045 1.704296  1.0109443
-6016                     6016 6.043214        1.0921717 7.135386 1.180727  0.9173631
-6039                     6039 4.671776        0.7804964 5.452272 1.167066  0.1206878</code></pre>
-<!-- rnb-output-end -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuaGVhZChib3RoLnNucHNbLDE6MTBdKVxuYGBgIn0= -->
-<pre class="r"><code>head(both.snps[,1:10])</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiICAgWDEwMDAwMCBYNTgzNyBYNjAwOCBYNjAwOSBYNjAxNiBYNjAzOSBYNjA0MiBYNjA0MyBYNjA0NiBYNjA2NFxuVjIgICAgICAgMCAgICAgMCAgICAgMCAgICAgMSAgICAgMSAgICAgMCAgICAgMCAgICAgMSAgICAgMSAgICAgMVxuVjMgICAgICAgMSAgICAgMCAgICAgMCAgICAgMSAgICAgMCAgICAgMCAgICAgMCAgICAgMSAgICAgMSAgICAgMVxuVjQgICAgICAgMSAgICAgMSAgICAgMSAgICAgMCAgICAgMCAgICAgMSAgICAgMSAgICAgMCAgICAgMCAgICAgMFxuVjUgICAgICAgMCAgICAgMSAgICAgMCAgICAgMCAgICAgMCAgICAgMCAgICAgMSAgICAgMCAgICAgMCAgICAgMFxuVjYgICAgICAgMSAgICAgMCAgICAgMSAgICAgMSAgICAgMSAgICAgMSAgICAgMSAgICAgMSAgICAgMSAgICAgMVxuVjcgICAgICAgMSAgICAgMCAgICAgMCAgICAgMCAgICAgMCAgICAgMSAgICAgMCAgICAgMCAgICAgMSAgICAgMFxuIn0= -->
-<pre><code>   X100000 X5837 X6008 X6009 X6016 X6039 X6042 X6043 X6046 X6064
-V2       0     0     0     1     1     0     0     1     1     1
-V3       1     0     0     1     0     0     0     1     1     1
-V4       1     1     1     0     0     1     1     0     0     0
-V5       0     1     0     0     0     0     1     0     0     0
-V6       1     0     1     1     1     1     1     1     1     1
-V7       1     0     0     0     0     1     0     0     1     0</code></pre>
-<!-- rnb-output-end -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuaGVhZChib3RoLnNucHMuS1ssMToxMF0pXG5gYGAifQ== -->
-<pre class="r"><code>head(both.snps.K[,1:10])</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiICAgICAgICAgVjEgICAgICAgIFYyICAgICAgICBWMyAgICAgICAgVjQgICAgICAgIFY1ICAgICAgICBWNiAgICAgICAgVjcgICAgICAgIFY4XG4xIDEuMDAwMDAwMCAwLjY5MjAwNzggMC42ODc0MTU3IDAuNjQ4NjM4OCAwLjY0NzIzNDUgMC42ODAyNzczIDAuNjc2NTU1OSAwLjYzNTA5NjhcbjIgMC42OTIwMDc4IDEuMDAwMDAwMCAwLjczNTI2OTEgMC42NTU5NTUxIDAuNjU1MjcxNyAwLjcwNTEyODQgMC42OTg0NzY4IDAuNjQ2ODc4N1xuMyAwLjY4NzQxNTcgMC43MzUyNjkxIDEuMDAwMDAwMCAwLjY1NTM5ODEgMC42NTY4NzcyIDAuNjk1NzUyNSAwLjY5OTQzNjQgMC42NDg2NzE1XG40IDAuNjQ4NjM4OCAwLjY1NTk1NTEgMC42NTUzOTgxIDEuMDAwMDAwMCAwLjc5NDIyNTYgMC42NjA0ODYzIDAuNjU3NzM4NSAwLjc2MzUxMzlcbjUgMC42NDcyMzQ1IDAuNjU1MjcxNyAwLjY1Njg3NzIgMC43OTQyMjU2IDEuMDAwMDAwMCAwLjY2MzI0ODAgMC42NTE2MTU5IDAuNzQxNjE2NFxuNiAwLjY4MDI3NzMgMC43MDUxMjg0IDAuNjk1NzUyNSAwLjY2MDQ4NjMgMC42NjMyNDgwIDEuMDAwMDAwMCAwLjY5NDI4MjcgMC42NTEyNjk1XG4gICAgICAgICBWOSAgICAgICBWMTBcbjEgMC42MzUyMDQ1IDAuNjQ3MDAwNFxuMiAwLjY0NjgxNzkgMC42NTQ5NjI3XG4zIDAuNjQ4NTI2NCAwLjY2MzU4MDRcbjQgMC43NjI1MTY5IDAuNzk5OTY0NFxuNSAwLjc0MDcyMjQgMC44MjU4NDA3XG42IDAuNjUxMjQ2MSAwLjY2NDcwODVcbiJ9 -->
-<pre><code>         V1        V2        V3        V4        V5        V6        V7        V8
-1 1.0000000 0.6920078 0.6874157 0.6486388 0.6472345 0.6802773 0.6765559 0.6350968
-2 0.6920078 1.0000000 0.7352691 0.6559551 0.6552717 0.7051284 0.6984768 0.6468787
-3 0.6874157 0.7352691 1.0000000 0.6553981 0.6568772 0.6957525 0.6994364 0.6486715
-4 0.6486388 0.6559551 0.6553981 1.0000000 0.7942256 0.6604863 0.6577385 0.7635139
-5 0.6472345 0.6552717 0.6568772 0.7942256 1.0000000 0.6632480 0.6516159 0.7416164
-6 0.6802773 0.7051284 0.6957525 0.6604863 0.6632480 1.0000000 0.6942827 0.6512695
-         V9       V10
-1 0.6352045 0.6470004
-2 0.6468179 0.6549627
-3 0.6485264 0.6635804
-4 0.7625169 0.7999644
-5 0.7407224 0.8258407
-6 0.6512461 0.6647085</code></pre>
-<!-- rnb-output-end -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYm90aC5waGVub3MgPC0gYm90aC5waGVub3NbLC0xXVxuYm90aC5zbnBzLksgPC0gYm90aC5zbnBzLktbLC0xXVxuYGBgIn0= -->
-<pre class="r"><code>both.phenos &lt;- both.phenos[,-1]
-both.snps.K &lt;- both.snps.K[,-1]</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-<p>merge</p>
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuc2F2ZShwaGVuby5nZW5vLFwicGhlbm8uZ2Vuby5SZGF0YVwiKVxuXG5gYGAifQ== -->
-<pre class="r"><code>save(pheno.geno,&quot;pheno.geno.Rdata&quot;)
-</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiRXJyb3IgaW4gc2F2ZShwaGVuby5nZW5vLCBcInBoZW5vLmdlbm8uUmRhdGFcIikgOiBcbiAgb2JqZWN0IOKAmHBoZW5vLmdlbm8uUmRhdGHigJkgbm90IGZvdW5kXG4ifQ== -->
-<pre><code>Error in save(pheno.geno, &quot;pheno.geno.Rdata&quot;) : 
-  object ‘pheno.geno.Rdata’ not found</code></pre>
-<!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 <p>test how to make large formula</p>
@@ -473,7 +412,7 @@ scale reduction factor on split chains (at convergence, Rhat = 1).</code></pre>
 <!-- rnb-text-begin -->
 <!-- rnb-text-end -->
 
-<div id="rmd-source-code">LS0tCnRpdGxlOiAiUiBOb3RlYm9vayIKb3V0cHV0OiBodG1sX25vdGVib29rCi0tLQoKYGBge3J9CmxpYnJhcnkoYnJtcykKcnN0YW5fb3B0aW9ucyhhdXRvX3dyaXRlID0gVFJVRSkKb3B0aW9ucyhtYy5jb3JlcyA9IHBhcmFsbGVsOjpkZXRlY3RDb3JlcygpKQpgYGAKCgpnZXQgZGF0YQpgYGB7cn0KCiMjIyBicmluZ2luZyBmaWxlcyBmb3IgcGhlbm9zLCBnZW5vcywgSyBtYXRyaWNlcwpib3RoLnBoZW5vcyA8LSBhcy5tYXRyaXgocmVhZC5jc3YoZmlsZT0ifi9Eb2N1bWVudHMvTGFiIERhdGEvRGFuaWVsZS9iaWdfaHlwcy9iaWdfaHlwc19hc3NvY2lhdGlvbnMvYm90aC5zbWFsbC5jc3YiLHJvdy5uYW1lcz0xKSkKYm90aC5zbnBzIDwtIGFzLm1hdHJpeChyZWFkLmNzdihmaWxlPSJ+L0RvY3VtZW50cy9MYWIgRGF0YS9EYW5pZWxlL2JpZ19oeXBzL2JpZ19oeXBzX2Fzc29jaWF0aW9ucy9ib3RoLnNucHMuY3N2Iixyb3cubmFtZXM9MSxhcy5pcyA9IFRSVUUpKQpib3RoLnNucHMuSyA8LSBhcy5tYXRyaXgocmVhZC5jc3YoZmlsZT0ifi9Eb2N1bWVudHMvTGFiIERhdGEvRGFuaWVsZS9iaWdfaHlwcy9iaWdfaHlwc19hc3NvY2lhdGlvbnMvYm90aC5zbnBzLksuY3N2Iixyb3cubmFtZXMgPSAxKSkKCmhlYWQoYm90aC5waGVub3MpCmhlYWQoYm90aC5zbnBzWywxOjEwXSkKaGVhZChib3RoLnNucHMuS1ssMToxMF0pCgpib3RoLnBoZW5vcyA8LSBib3RoLnBoZW5vc1ssLTFdCmJvdGguc25wcy5LIDwtIGJvdGguc25wcy5LWywtMV0KYGBgCgptZXJnZQpgYGB7cn0KYm90aC5zbnBzLnQgPC0gdChib3RoLnNucHMpCnJvdy5uYW1lcyhib3RoLnNucHMudCkgPC0gc3ViKCJYIiwiIixyb3cubmFtZXMoYm90aC5zbnBzLnQpKQpwaGVuby5nZW5vIDwtIG1lcmdlKGJvdGgucGhlbm9zLGJvdGguc25wcy50LGJ5PSJyb3cubmFtZXMiKQpoZWFkKHBoZW5vLmdlbm9bLDE6MTBdKQpzYXZlKHBoZW5vLmdlbm8sZmlsZT0icGhlbm8uZ2Vuby5SZGF0YSIpCmBgYAp0ZXN0IGhvdyB0byBtYWtlIGxhcmdlIGZvcm11bGEKYGBge3J9Cm15LmZvcm11bGEgPC0gYXMuZm9ybXVsYShwYXN0ZSgiaGlnaC5SRlIgfiIsIHBhc3RlKGNvbG5hbWVzKHBoZW5vLmdlbm9bMTA6MjA5XSksY29sbGFwc2U9IisiKSkpCmBgYAoKYGBge3J9CmJybTEgPC0gYnJtKG15LmZvcm11bGEsIGRhdGE9cGhlbm8uZ2VubywKICAgICAgICAgICAgcHJpb3I9YygKICAgICAgICAgICAgICBzZXRfcHJpb3IoImhvcnNlc2hvZSgzLHNjYWxlX2dsb2JhbD0wLjEpIixjbGFzcz0iYiIpLAogICAgICAgICAgICAgIHNldF9wcmlvcigibm9ybWFsKDMuNSwxKSIsY2xhc3M9IkludGVyY2VwdCIpCiAgICAgICAgICAgICksCiAgICAgICAgICAgIHNwYXJzZT1UUlVFLAogICAgICAgICAgICBpdGVyPTIwMDAwLAogICAgICAgICAgICBjb250cm9sID0gbGlzdChhZGFwdF9kZWx0YSA9IDAuOCkKKQpicm0xCmBgYAoK</div>
+<div id="rmd-source-code">LS0tCnRpdGxlOiAiUiBOb3RlYm9vayIKb3V0cHV0OiBodG1sX25vdGVib29rCi0tLQoKYGBge3J9CmxpYnJhcnkoYnJtcykKcnN0YW5fb3B0aW9ucyhhdXRvX3dyaXRlID0gVFJVRSkKb3B0aW9ucyhtYy5jb3JlcyA9IHBhcmFsbGVsOjpkZXRlY3RDb3JlcygpKQpgYGAKCgpnZXQgZGF0YQpgYGB7cn0KbG9hZCgicGhlbm8uZ2Vuby5SZGF0YSIpCmBgYAoKdGVzdCBob3cgdG8gbWFrZSBsYXJnZSBmb3JtdWxhCmBgYHtyfQpteS5mb3JtdWxhIDwtIGFzLmZvcm11bGEocGFzdGUoImhpZ2guUkZSIH4iLCBwYXN0ZShjb2xuYW1lcyhwaGVuby5nZW5vWzEwOjIwOV0pLGNvbGxhcHNlPSIrIikpKQpgYGAKCmBgYHtyfQpicm0xIDwtIGJybShteS5mb3JtdWxhLCBkYXRhPXBoZW5vLmdlbm8sCiAgICAgICAgICAgIHByaW9yPWMoCiAgICAgICAgICAgICAgc2V0X3ByaW9yKCJob3JzZXNob2UoMyxzY2FsZV9nbG9iYWw9MC4xKSIsY2xhc3M9ImIiKSwKICAgICAgICAgICAgICBzZXRfcHJpb3IoIm5vcm1hbCgzLjUsMSkiLGNsYXNzPSJJbnRlcmNlcHQiKQogICAgICAgICAgICApLAogICAgICAgICAgICBzcGFyc2U9VFJVRSwKICAgICAgICAgICAgaXRlcj0yMDAwMCwKICAgICAgICAgICAgY29udHJvbCA9IGxpc3QoYWRhcHRfZGVsdGEgPSAwLjgpCikKYnJtMQpgYGAKCg==</div>
 
 
 
