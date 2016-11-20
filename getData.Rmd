@@ -30,6 +30,9 @@ merge
 both.snps.t <- t(both.snps)
 row.names(both.snps.t) <- sub("X","",row.names(both.snps.t))
 pheno.geno <- merge(both.phenos,both.snps.t,by="row.names")
+pheno <- both.phenos
+geno <- both.snps
+K.mat <- both.snps.K
 head(pheno.geno[,1:10])
-save(pheno.geno,file="pheno.geno.Rdata")
+save(pheno,geno,K.mat,pheno.geno,file="pheno.geno.Rdata")
 ```
