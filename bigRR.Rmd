@@ -3,16 +3,46 @@ title: "bigRR"
 output: html_notebook
 ---
 
-#bigRR
 ```{r}
 library(bigRR)
+library(ggplot2)
+library(magrittr)
+library(reshape2)
+```
+
+
+## get the data
+
+```{r}
+load("pheno.geno.Rdata")
+```
+
+
+## bigRR
+
+Fit two bigRR models
+```{r}
+
 bigRR1 <- bigRR(y=pheno.geno$high.RFR,
                 X = matrix(1,nrow = nrow(pheno.geno),ncol=1), # intercepts
                 Z = as.matrix(pheno.geno[,grep("^V",colnames(pheno.geno))]))
-summary(bigRR1)
-plot(bigRR1)
-plot(bigRR1$u,cex=.6,pch=20)
-bigRR1$beta
-bigRR1.update <- bigRR_update(bigRR1,Z = as.matrix(pheno.geno[,grep("^V",colnames(pheno.geno))]))
+bigRR1.update <- bigRR_update(bigRR1,Z = as.matrix(pheno.geno[,grep("^V",colnames(pheno.geno))])) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
 ```
+
+get BLUPs from the two models
+```{r}
+snpBlups <- data.frame(bigRR=bigRR1$u, bigRR.HME=bigRR1.update$u,index=1:nrow(bigRR1$u)) %>% melt(id.vars="index",variable.name="model")
+head(snpBlups)
+summary(snpBlups)
+```
+
+compare BLUPs
+```{r}
+snpBlups <- snpBlups[sample(nrow(snpBlups)),] #for a better plot, randomize the order of the observations
+pl <- ggplot(snpBlups,aes(x=index,y=value,color=model))
+pl <- pl + geom_point(size=.5,alpha=.5)
+pl
+pl + facet_wrap(~ model)
+```
+
 
