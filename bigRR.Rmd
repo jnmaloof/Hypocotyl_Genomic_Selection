@@ -8,13 +8,23 @@ library(bigRR)
 library(ggplot2)
 library(magrittr)
 library(reshape2)
+library(rrBLUP)
+library(BGLR)
 ```
 
 
 ## get the data
 
+Also center the genotpyes, so that the genotypes are represented as -1, 0, +1, as needed by some packages.
+
 ```{r}
 load("pheno.geno.Rdata")
+geno.cols <- grep("^V",colnames(pheno.geno))
+geno.center <- geno*2-1
+head(geno.center[,1:10])
+head(geno[,1:10])
+all(row.names(geno.center) == row.names(pheno))
+pheno <- as.data.frame(pheno)
 ```
 
 
@@ -23,10 +33,10 @@ load("pheno.geno.Rdata")
 Fit two bigRR models
 ```{r}
 
-bigRR1 <- bigRR(y=pheno.geno$high.RFR,
-                X = matrix(1,nrow = nrow(pheno.geno),ncol=1), # intercepts
-                Z = as.matrix(pheno.geno[,grep("^V",colnames(pheno.geno))]))
-bigRR1.update <- bigRR_update(bigRR1,Z = as.matrix(pheno.geno[,grep("^V",colnames(pheno.geno))])) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
+bigRR1 <- bigRR(y=pheno$high.RFR,
+                X = matrix(1,nrow = nrow(pheno),ncol=1), # intercepts
+                Z = geno.center)
+bigRR1.update <- bigRR_update(bigRR1,Z = geno.center) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
 ```
 
 get BLUPs from the two models
@@ -45,4 +55,79 @@ pl
 pl + facet_wrap(~ model)
 ```
 
+try some predictions...first, use half the data, and then try to predict the other half.
+```{r}
+pheno.train <- pheno[1:100,]
+pheno.test <- pheno[101:169,]
+geno.train <- geno.center[1:100,]
+geno.test <- geno.center[101:169,]
+
+bigRR.train1 <- bigRR(y=pheno.train$high.RFR,
+                X = matrix(1,nrow = nrow(pheno.train),ncol=1), # intercepts
+                Z = geno.train)
+bigRR1.train1.update <- bigRR_update(bigRR.train1,Z = geno.train) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
+```
+
+```{r}
+hyp.predict <- as.numeric(bigRR1.train1.update$beta + 
+                            geno.test %*% bigRR1.train1.update$u)
+plot(pheno.test$high.RFR,hyp.predict)
+cor(pheno.test$high.RFR,hyp.predict)
+```
+Try again for larger training set
+```{r}
+pheno.train.120 <- pheno[1:120,]
+pheno.test.120 <- pheno[121:169,]
+geno.train.120 <- geno.center[1:120,]
+geno.test.120 <- geno.center[121:169,]
+bigRR.train1 <- bigRR(y=pheno.train.120$high.RFR,
+                X = matrix(1,nrow = nrow(pheno.train.120),ncol=1), # intercepts
+                Z = geno.train.120)
+bigRR1.train1.update <- bigRR_update(bigRR.train1,Z = geno.train.120) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
+```
+
+```{r}
+hyp.predict <- as.numeric(bigRR1.train1.update$beta + 
+                            geno.test.120 %*% bigRR1.train1.update$u)
+plot(pheno.test.120$high.RFR,hyp.predict)
+cor(pheno.test.120$high.RFR,hyp.predict)
+```
+Better, but, still not great
+
+On to something else...
+
+# rrBLUP
+
+```{r, eval=FALSE}
+install.packages("rrBLUP")
+```
+
+impute missing genotype values and additive relationship matrix
+```{r}
+impute <- A.mat(geno.center,max.missing = .5, impute.method = "mean", return.imputed = TRUE,n.core=3)
+geno_impute <- impute$imputed
+any(apply(geno_impute,2,function(x) any(is.na(x)))) #check for NAs.  If there are any, then would need to remove NA columns
+```
+
+
+fit model
+```{r}
+rrBLUP1 <- mixed.solve(pheno.train[,"high.RFR"], Z=geno.train)
+names(rrBLUP1)
+rrBLUP1$beta
+head(rrBLUP1$u)
+```
+
+predict from model
+```{r}
+prediction <- rrBLUP1$beta[1] + geno.test %*% as.matrix(rrBLUP1$u)
+cor(pheno.test[,"high.RFR"],prediction)
+plot(pheno.test[,"high.RFR"],prediction)
+```
+
+# BGLR
+
+```{r}
+bglr1 <- BGLR(y=pheno.geno.train$high
+```
 
