@@ -1,7 +1,10 @@
 ---
-title: "bigRR"
+title: "Getting Started with Genomic Prediction"
+author: "Julin Maloof"
+date: "November 22, 2016"
 output: 
   revealjs::revealjs_presentation:
+    incremental: true
     keep_md: yes
 ---
 
@@ -17,6 +20,19 @@ library(reshape2)
 library(rrBLUP)
 library(BGLR)
 ```
+
+# Genomic Selection Intro
+
+## Goal: Predictive Breeding
+
+* Want to breed plants for better performance, resistance, etc.
+* Use genetic / genomic data to predict best plants for breeding
+
+## Old school: Marker assisted selection
+
+
+
+
 
 ## get the data
 
@@ -111,7 +127,7 @@ any(apply(geno_impute,2,function(x) any(is.na(x)))) #check for NAs.  If there ar
 ```
 
 fit model
-```{r, include=FALSE}
+```{r, eval= FALSE, include=FALSE}
 rrBLUP1 <- mixed.solve(pheno.train$high.RFR, Z=geno.train)
 names(rrBLUP1)
 rrBLUP1$beta
@@ -119,7 +135,7 @@ head(rrBLUP1$u)
 ```
 
 predict from model
-```{r, include=FALSE}
+```{r, eval=FALSE, include=FALSE}
 prediction <- rrBLUP1$beta[1] + geno.test %*% as.matrix(rrBLUP1$u)
 cor(pheno.test$high.RFR,prediction)
 plot(pheno.test$high.RFR,prediction)
