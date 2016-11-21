@@ -1,7 +1,7 @@
 ---
 title: "bigRR"
 output: 
-  output: revealjs::revealjs_presentation:
+  revealjs::revealjs_presentation:
     keep_md: yes
 ---
 
