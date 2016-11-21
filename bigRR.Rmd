@@ -102,8 +102,10 @@ On to something else...
 install.packages("rrBLUP")
 ```
 
+
 impute missing genotype values and additive relationship matrix
-```{r}
+__not needed for this analysis__
+```{r, eval=FALSE}
 impute <- A.mat(geno.center,max.missing = .5, impute.method = "mean", return.imputed = TRUE,n.core=3)
 geno_impute <- impute$imputed
 any(apply(geno_impute,2,function(x) any(is.na(x)))) #check for NAs.  If there are any, then would need to remove NA columns
@@ -112,7 +114,7 @@ any(apply(geno_impute,2,function(x) any(is.na(x)))) #check for NAs.  If there ar
 
 fit model
 ```{r}
-rrBLUP1 <- mixed.solve(pheno.train[,"high.RFR"], Z=geno.train)
+rrBLUP1 <- mixed.solve(pheno.train$high.RFR, Z=geno.train)
 names(rrBLUP1)
 rrBLUP1$beta
 head(rrBLUP1$u)
@@ -121,8 +123,8 @@ head(rrBLUP1$u)
 predict from model
 ```{r}
 prediction <- rrBLUP1$beta[1] + geno.test %*% as.matrix(rrBLUP1$u)
-cor(pheno.test[,"high.RFR"],prediction)
-plot(pheno.test[,"high.RFR"],prediction)
+cor(pheno.test$high.RFR,prediction)
+plot(pheno.test$high.RFR,prediction)
 ```
 
 # BGLR
