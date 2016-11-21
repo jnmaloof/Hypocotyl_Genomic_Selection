@@ -133,6 +133,7 @@ Fit a Bayesian Lasso model
 system.time(bglr.bl1 <- BGLR(y=pheno.train.120$high.RFR, 
                              ETA=list(list(X=geno.train.120,model="BL")),
                              verbose = FALSE,
+                             saveAt = "bglr_output/bglr.bl1_",
                              niter=12000,burnIn = 2000))
 ```
 
@@ -143,6 +144,7 @@ system.time(bglr.bl2 <- BGLR(y=pheno.train.120$high.RFR,
                              ETA=list(list(X=geno.train.120,model="BL"),
                                       list(K=K.mat.train.120,model="RKHS")),
                              verbose = FALSE,
+                             saveAt = "bglr_output/bglr.bl2_",
                              niter=12000,burnIn = 2000))
 ```
 
@@ -152,6 +154,7 @@ Fit a BayesC model with
 system.time(bglr.bc1 <- BGLR(y=pheno.train.120$high.RFR, 
                              ETA=list(list(X=geno.train.120,model="BayesC")),
                              verbose = FALSE,
+                             saveAt = "bglr_output/bglr.bc1_",
                              niter=12000,burnIn = 2000))
 ```
 
@@ -161,6 +164,7 @@ system.time(bglr.bc2 <- BGLR(y=pheno.train.120$high.RFR,
                              ETA=list(list(X=geno.train.120,model="BayesC"),
                                       list(K=K.mat.train.120,model="RKHS")),
                              verbose = FALSE,
+                             saveAt = "bglr_output/bglr.bc2_",
                              niter=12000,burnIn = 2000))
 ```
 
