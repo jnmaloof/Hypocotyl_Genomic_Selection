@@ -22,7 +22,6 @@ head(both.snps[,1:10])
 head(both.snps.K[,1:10])
 
 both.phenos <- both.phenos[,-1]
-both.snps.K <- both.snps.K[,-1]
 ```
 
 merge
