@@ -4,6 +4,9 @@ author: "Julin Maloof"
 date: "November 22, 2016"
 output: 
   revealjs::revealjs_presentation:
+    reveal_options:
+      width: 1200
+      height: 800
     incremental: true
     keep_md: yes
 ---
@@ -24,21 +27,67 @@ library(BGLR)
 # Genomic Selection Intro
 
 ## Goal: Predictive Breeding
+<!-- .slide: style="text-align: left;"> --> 
 
 * Want to breed plants for better performance, resistance, etc.
 * Use genetic / genomic data to predict best plants for breeding
 
 ## Old school: Marker assisted selection
 
+* Use QTL or GWAS to find a few markers linked to trait of interest
+* Genotype at those markers to "pyramid" during breeding
+* Problem: ignores the many, many small loci that contribute to the trait
 
+## Genomic Selection
 
+* Instead of focusing on a few main loci, try to predict the effects of all loci
+* QTL and GWAS fit a separate regression model for each location being considered
+$ hyp \sim \beta1*M1 $
+$ hyp \sim \beta2*M2 $
+$ hyp \sim \beta3*M3 $
+...
+$ hyp \sim  \beta * M250000 $
 
+* Genomic Selection fits a model to all markers simultaneously
 
+$ hyp \sim \beta1*M1 + \beta2*M2 + \beta3*M3 + ... +\beta250000*M250000 $
+
+## Genomic Selection
+
+* Genomic Selection fits a model to all markers simultaneously
+
+$ hyp \sim \beta1*M1 + \beta2*M2 + \beta3*M3 + ... +\beta250000*M250000 $
+
+* Once this model is fit then we can predict the performance of other strains
+* Challenge: How to fit a regression model with hundreds of thousands of predictors?
+
+## Penalized Regression
+
+* Standard regression models do not perform well with many predictors
+* If we expect that most predictors will have an effect size of ~ 0 (we do in this case), use _penalized regression_
+* Can be done using frequentist framework:
+  * "Penalize" models for non-zero coefficients
+  * Lasso Regression, Ridge Regression, Elastic Net
+* Can be done using Bayesian framework:
+  * Use priors strongly biased towards zero
+  * Horseshoe, Laplace, Student's T, etc.
+  
+# Today's goal
+
+## Tool exploration
+
+* The KIAT project aims to use Genomic Selection techniques for predicitive breeding
+* My goal was to start becoming familiar with the available tools in R
+* Use hypocotyl data set from Filiault and Maloof (2012)
+    * 169 Arabidopsis natural accessions
+    * 250,000 SNPs
+* Train on 120 and try to predict remaining 49
+                              
+```{r, include=FALSE}
 ## get the data
 
-Also center the genotpyes, so that the genotypes are represented as -1, 0, +1, as needed by some packages.
+#Also center the genotpyes, so that the genotypes are represented as -1, 0, +1, as needed by some packages.
 
-```{r, include=FALSE}
 load("pheno.geno.Rdata")
 geno.cols <- grep("^V",colnames(pheno.geno))
 geno.center <- geno*2-1
@@ -49,9 +98,11 @@ pheno <- as.data.frame(pheno)
 ```
 
 
-## bigRR
+# bigRR
 
-Fit two bigRR models
+Package bigRR (big Ridge Regression) uses optimized code to fit penalized Ridge Regression models.  
+Enables separate shrinkage parameters to be used for each marker, in a two-step process
+
 ```{r, include=FALSE}
 bigRR1 <- bigRR(y=pheno$high.RFR,
                 X = matrix(1,nrow = nrow(pheno),ncol=1), # intercepts
@@ -59,43 +110,38 @@ bigRR1 <- bigRR(y=pheno$high.RFR,
 bigRR1.update <- bigRR_update(bigRR1,Z = geno.center) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
 ```
 
-get BLUPs from the two models
+## compare models with uniform and variable shrinkage
+
+using all data.  Plot predicted marker effects
+
 ```{r, include=FALSE}
 snpBlups <- data.frame(bigRR=bigRR1$u, bigRR.HME=bigRR1.update$u,index=1:nrow(bigRR1$u)) %>% melt(id.vars="index",variable.name="model")
 head(snpBlups)
 summary(snpBlups)
 ```
 
-compare BLUPs
-```{r, include=FALSE}
-snpBlups <- snpBlups[sample(nrow(snpBlups)),] #for a better plot, randomize the order of the observations
+```{r, echo=FALSE}
+snpBlups <- snpBlups[sample(nrow(snpBlups)),] #for a better plot (if not facetting), randomize the order of the observations
 pl <- ggplot(snpBlups,aes(x=index,y=value,color=model))
 pl <- pl + geom_point(size=.5,alpha=.5)
-pl
 pl + facet_wrap(~ model)
 ```
 
-try some predictions...first, use half the data, and then try to predict the other half.
-```{r, eval=FALSE,include=FALSE}
-pheno.train <- pheno[1:100,]
-pheno.test <- pheno[101:169,]
-geno.train <- geno.center[1:100,]
-geno.test <- geno.center[101:169,]
+## plot predicted versus actual (using all data)
 
-bigRR.train1 <- bigRR(y=pheno.train$high.RFR,
-                X = matrix(1,nrow = nrow(pheno.train),ncol=1), # intercepts
-                Z = geno.train)
-bigRR1.train1.update <- bigRR_update(bigRR.train1,Z = geno.train) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
+```{r, echo=FALSE}
+hyp.predict.wide <- data.frame(observed=pheno$high.RFR,
+                          bigRR=bigRR1$beta + geno %*% bigRR1$u,
+                          bigRR.HME=bigRR1.update$beta + geno %*% bigRR1.update$u) 
+hyp.predict <-  melt(hyp.predict.wide,id.vars="observed",variable.name="model",value.name = "predicted")
+pl <- ggplot(hyp.predict,aes(x=observed,y=predicted,color=model))
+pl + geom_point() + ggtitle("two bigRR models, all data")
+cor(hyp.predict.wide)
 ```
+fits the model data well
 
-```{r, eval=FALSE, include=FALSE}
-hyp.predict <- as.numeric(bigRR1.train1.update$beta + 
-                            geno.test %*% bigRR1.train1.update$u)
-plot(pheno.test$high.RFR,hyp.predict)
-cor(pheno.test$high.RFR,hyp.predict)
-```
+## predict new observations
 
-Try again for larger training set
 ```{r, include=FALSE}
 pheno.train.120 <- pheno[1:120,]
 pheno.test.120 <- pheno[121:169,]
@@ -105,19 +151,25 @@ K.mat.train.120 <- K.mat[1:120,1:120]
 bigRR.train1 <- bigRR(y=pheno.train.120$high.RFR,
                 X = matrix(1,nrow = nrow(pheno.train.120),ncol=1), # intercepts
                 Z = geno.train.120)
-bigRR1.train1.update <- bigRR_update(bigRR.train1,Z = geno.train.120) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
+bigRR.train1.update <- bigRR_update(bigRR.train1,Z = geno.train.120) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
 ```
 
-```{r}
-hyp.predict <- as.numeric(bigRR1.train1.update$beta + 
-                            geno.test.120 %*% bigRR1.train1.update$u)
-plot(pheno.test.120$high.RFR,hyp.predict)
-cor(pheno.test.120$high.RFR,hyp.predict)
+```{r, echo=FALSE}
+hyp.predict.120.wide <- data.frame(observed=pheno.test.120$high.RFR,
+                          bigRR=bigRR.train1$beta + geno.test.120 %*% bigRR.train1$u,
+                          bigRR.HME=bigRR.train1.update$beta + geno.test.120 %*% bigRR.train1.update$u)
+hyp.predict.120 <- melt(hyp.predict.120.wide,id.vars="observed",variable.name="model",value.name = "predicted")
+pl <- ggplot(hyp.predict.120,aes(x=observed,y=predicted,color=model))
+pl + geom_point() + ggtitle("two bigRR models, train on 120")
+
+cor(hyp.predict.120.wide)
 ```
 
-On to something else...
+Better than nothing, but not as good as I hoped.  Try something else?
 
 # rrBLUP
+
+similar to bigRR, not included
 
 ```{r, eval=FALSE, include=FALSE} 
 # not needed for this analysis
@@ -143,48 +195,100 @@ plot(pheno.test$high.RFR,prediction)
 
 # BGLR
 
-Fit a Bayesian Lasso model
+BGLR is a package that implements many different Bayesian approached to genomics selection.
 
-```{r}
+Two versions will be explored here
+* Bayesian Lasso
+* Bayes C
+
+## Fit a Bayesian Lasso model
+
+```{r, include=FALSE}
 system.time(bglr.bl1 <- BGLR(y=pheno.train.120$high.RFR, 
                              ETA=list(list(X=geno.train.120,model="BL")),
                              verbose = FALSE,
                              saveAt = "bglr_output/bglr.bl1_",
-                             niter=12000,burnIn = 2000))
+                             nIter=12000,burnIn = 2000))
 ```
 
 Fit a Bayesian Lasso model, with K
 
-```{r}
+```{r, include=FALSE}
 system.time(bglr.bl2 <- BGLR(y=pheno.train.120$high.RFR,
                              ETA=list(list(X=geno.train.120,model="BL"),
                                       list(K=K.mat.train.120,model="RKHS")),
                              verbose = FALSE,
                              saveAt = "bglr_output/bglr.bl2_",
-                             niter=12000,burnIn = 2000))
+                             nIter=12000,burnIn = 2000))
 ```
 
 Fit a BayesC model with
 
-```{r}
+```{r, include=FALSE}
 system.time(bglr.bc1 <- BGLR(y=pheno.train.120$high.RFR, 
                              ETA=list(list(X=geno.train.120,model="BayesC")),
                              verbose = FALSE,
                              saveAt = "bglr_output/bglr.bc1_",
-                             niter=12000,burnIn = 2000))
+                             nIter=12000,burnIn = 2000))
 ```
 
 Fit a BayesC model with K
-```{r}
+```{r, include=FALSE}
 system.time(bglr.bc2 <- BGLR(y=pheno.train.120$high.RFR,
                              ETA=list(list(X=geno.train.120,model="BayesC"),
                                       list(K=K.mat.train.120,model="RKHS")),
                              verbose = FALSE,
                              saveAt = "bglr_output/bglr.bc2_",
-                             niter=12000,burnIn = 2000))
+                             nIter=12000,burnIn = 2000))
 ```
 
-```{r, eval=FALSE}
+```{r, eval=TRUE, include=FALSE}
+save.image(file = "Genome_Prediction_Fits.Rdata")
+```
+
+```{r bglr_functions, include=FALSE}
+plot_fitted_observed <- function(fit,title="fitted vs observed, training set") {
+  print(qplot(pheno.train.120$high.RFR,fit$yHat,geom = "point",main = title,xlab="observed",ylab="fitted"))
+  cor(pheno.train.120$high.RFR,fit$yHat)
+}
+
+plot_predicted_observed <- function(fit,title="predicted vs observed, test set") {
+  prediction <- geno.test.120 %*% fit$ETA[[1]]$b + fit$mu
+  print(qplot(pheno.test.120$high.RFR,prediction,xlab='observed',ylab='predicted',main=title,geom="point"))
+  cor(prediction,pheno.test.120$high.RFR)
+}
+```
+
+## Bayesian Lasso, no structure
+
+```{r}
+plot_fitted_observed(bglr.bl1)
+plot_predicted_observed(bglr.bl1)
+```
+
+## Bayesian Lasso, with structure
+
+```{r}
+plot_fitted_observed(bglr.bl2)
+plot_predicted_observed(bglr.bl2)
+```
+
+## BayesC, no structure
+
+```{r}
+plot_fitted_observed(bglr.bc1)
+plot_predicted_observed(bglr.bc1)
+```
+
+## BayesC, with structure
+
+```{r}
+plot_fitted_observed(bglr.bc2)
+plot_predicted_observed(bglr.bc2)
+```
+
+
+```{r, eval=FALSE, echo=FALSE}
 #1# Estimated Marker Effects & posterior SDs
 bHat <- bglr.bl1$ETA[[1]]$b
 SD.bHat <- bglr.bl1$ETA[[1]]$SD.b
@@ -218,3 +322,10 @@ lambda<-scan('ETA_1_lambda.dat')
 plot(lambda,type='o',col=2,cex=.5,ylab=expression(lambda)); abline(h=bglr.bl1$ETA[[1]]$lambda,col=4,lwd=2); abline(v=bglr.bl1$burnIn/bglr.bl1$thin,col=4)
 ```
 
+# To Do
+
+* pull different test and training sets
+* Check BGLR convergence
+* Compare to traditional GWAS
+    * Marker effects
+    * Predictions
