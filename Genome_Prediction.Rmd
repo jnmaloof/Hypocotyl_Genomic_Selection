@@ -3,12 +3,12 @@ title: "Getting Started with Genomic Prediction"
 author: "Julin Maloof"
 date: "November 22, 2016"
 output: 
-ioslides_presentation:
-widescreen: true
-incremental: true
-fig_width: 6
-fig_height: 4
-fig_caption: false
+  ioslides_presentation:
+    widescreen: true
+    incremental: true
+    fig_width: 6
+    fig_height: 4
+    fig_caption: false
 ---
 
 ```{r setup, include=FALSE}
@@ -32,6 +32,7 @@ This presentation made in R Markdown.
 The file is available at:
 
 https://github.com/jnmaloof/Hypocotyl_Genomic_Selection
+
 
 # Genomic Selection Intro
 
@@ -157,6 +158,7 @@ fits the model data well
 
 ## predict new observations
 
+
 ```{r, include=FALSE}
 pheno.train.120 <- pheno[1:120,]
 pheno.test.120 <- pheno[121:169,]
@@ -226,7 +228,7 @@ system.time(bglr.bl1 <- BGLR(y=pheno.train.120$high.RFR,
                              ETA=list(list(X=geno.train.120,model="BL")),
                              verbose = FALSE,
                              saveAt = "bglr_output/bglr.bl1_",
-                             nIter=12000,burnIn = 2000))
+                             niter=12000,burnIn = 2000))
 ```
 
 Fit a Bayesian Lasso model, with K
@@ -239,10 +241,12 @@ system.time(bglr.bl2 <- BGLR(y=pheno.train.120$high.RFR,
                              R2=.75,
                              saveAt = "bglr_output/bglr.bl2.R2.75_",
                              nIter=12000,burnIn = 2000))
+
 ```
 
 Fit a BayesC model with
 
+<<<<<<< HEAD
 ```{r, include=FALSE}
 system.time(bglr.bc1 <- BGLR(y=pheno.train.120$high.RFR, 
                              ETA=list(list(X=geno.train.120,model="BayesC")),
@@ -253,6 +257,7 @@ system.time(bglr.bc1 <- BGLR(y=pheno.train.120$high.RFR,
 
 Fit a BayesC model with K
 ```{r, include=FALSE}
+
 system.time(bglr.bc2 <- BGLR(y=pheno.train.120$high.RFR,
                              ETA=list(list(X=geno.train.120,model="BayesC"),
                                       list(K=K.mat.train.120,model="RKHS")),
@@ -333,6 +338,7 @@ blgr.bl1$varE # compare to var(y)
 
 #4# Trace plots
 list.files("bglr_output")
+
 # Residual variance
 varE<-scan('varE.dat') 
 plot(varE,type='o',col=2,cex=.5,ylab=expression(var[e])); abline(h=bglr.bl1$varE,col=4,lwd=2); abline(v=bglr.bl1$burnIn/bglr.bl1$thin,col=4)
@@ -445,5 +451,4 @@ plot(bigRR.120.100trials["Pearson",],bglr.bc.120.100trials["Pearson",])
 ## Next
 
 Effect of training size (should keep test size the same)
-
 
