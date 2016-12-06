@@ -1,0 +1,148 @@
+---
+title: "Genome Prediction Rice"
+output: html_notebook
+---
+
+I want to expand the genomic selection test to the Rice data set used in BIS180L
+
+```{r, include=FALSE, eval=TRUE, cache=FALSE}
+library(bigRR)
+library(ggplot2)
+library(magrittr)
+library(reshape2)
+library(rrBLUP)
+library(BGLR)
+```
+
+Get SNP Data
+
+```{r}
+rice.geno <- read.csv("RiceSNPData/Rice_44K_genotypes.csv.gz",
+                      row.names = 1,
+                      na.strings = c("NA","00"))
+
+head(rice.geno[,1:20]) #first six rows of first 20 columns
+summary(rice.geno[,1:20]) #summarizes the first 20 columns
+```
+
+
+Make it numeric
+
+```{r}
+#convert the data matrix to numbers
+geno.numeric <- data.matrix(rice.geno)
+head(geno.numeric[,1:20])
+
+#fix homozygous (need to be on the same scale for both homozygous and het)
+
+geno.numeric <- geno.numeric-1
+homozygous <- apply(geno.numeric,2,function(x) max(x,na.rm=T)==1)
+geno.numeric[,homozygous] <- geno.numeric[,homozygous]*2
+geno.numeric <- geno.numeric-1
+head(geno.numeric[,1:20])
+
+#calculate the Euclidian distance between each rice variety
+genDist2<-(as.matrix(dist(geno.numeric,method='euclidean'))^2)/ncol(geno.numeric)
+h<-0.5
+K<-exp(-h*genDist2)
+
+#impute missing
+rice.geno.impute <- A.mat(geno.numeric,return.imputed = TRUE)$imputed
+```
+
+```{r}
+round(genDist2[1:10,1:10],2)
+round(K[1:10,1:10],2)
+```
+
+get pheno
+```{r}
+rice.pheno <- read.csv("RiceSNPData/RiceDiversity.44K.MSU6.Phenotypes.csv",row.names=1)
+head(rice.pheno)
+summary(rice.pheno)
+head(rice.geno[,1:10])
+nrow(rice.geno)==nrow(rice.pheno)
+all(row.names(rice.geno)==row.names(rice.pheno))
+```
+
+
+```{r}
+rice.pheno.complete <- rice.pheno[!is.na(rice.pheno$Alu.Tol),]
+rice.geno.impute.complete <- rice.geno.impute[!is.na(rice.pheno$Alu.Tol),]
+```
+
+
+
+bigRR on full set
+```{r, include=FALSE}
+bigRR1 <- bigRR(y=rice.pheno.complete$Alu.Tol,
+                X = matrix(1,nrow = nrow(rice.pheno.complete),ncol=1), # intercepts
+                Z = rice.geno.impute.complete)
+bigRR1.update <- bigRR_update(bigRR1,Z = rice.geno.impute.complete) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
+
+```
+
+## plot predicted versus actual (using all data)
+
+```{r, echo=FALSE, eval=TRUE}
+alu.tol.predict <- data.frame(observed=rice.pheno.complete$Alu.Tol,
+                              bigRR.HME=bigRR1.update$beta + rice.geno.impute.complete %*% bigRR1.update$u) 
+plot(alu.tol.predict)
+cor(alu.tol.predict)
+```
+fits the model data well
+
+## predict new
+
+```{r}
+n.trials <- 10
+train.list <- lapply(1:n.trials,function(x) sample(1:nrow(rice.pheno.complete),size = 250, replace = FALSE))
+test.list <- lapply(train.list, function(x) setdiff(1:nrow(rice.pheno.complete),x))
+```
+
+## run bigRR and record correlations
+
+```{r}
+bigRR.250.10trials <- sapply(1:n.trials,function(trial) {
+  bigRR.train.tmp <- bigRR(y=rice.pheno.complete$Alu.Tol[train.list[[trial]]],
+                           X = matrix(1,nrow = length(train.list[[trial]]),ncol=1), # intercepts
+                           Z = rice.geno.impute.complete[train.list[[trial]],])
+  bigRR.train.tmp.update <- bigRR_update(bigRR.train.tmp,Z =  rice.geno.impute.complete[train.list[[trial]],]) 
+  tmp.predict <- data.frame(observed=rice.pheno.complete$Alu.Tol[test.list[[trial]]],
+                            predicted=bigRR.train.tmp.update$beta + rice.geno.impute.complete[test.list[[trial]],] %*% bigRR.train.tmp.update$u)
+  c(Pearson=cor(tmp.predict)[1,2],Kendall=cor(tmp.predict,method="kendall")[1,2])
+})
+save.image(file = "Genome_Prediction_Rice_Fits.Rdata")
+summary(t(bigRR.250.10trials))
+```
+## Try different training set size for predicting 70 test case
+```{r}
+test.70 <- sample(1:nrow(rice.pheno.complete),size = 70, replace = FALSE)
+full.train <- setdiff(1:nrow(rice.pheno.complete),test.70)
+```
+
+```{r}
+rice.pheno.complete <- rice.pheno[!is.na(rice.pheno$Seed.number.per.panicle),]
+rice.geno.impute.complete <- rice.geno.impute[!is.na(rice.pheno$Seed.number.per.panicle),]
+n.trials <- 20
+train.sizes <- c(10,50,100,150,200,250,300)
+train.size.results <- sapply(train.sizes, function(size) {
+  train.list <- lapply(1:n.trials,function(x) sample(full.train,size = size, replace = FALSE))
+  sapply(1:n.trials,function(trial) {
+    bigRR.train.tmp <- bigRR(y=rice.pheno.complete$Seed.number.per.panicle[train.list[[trial]]],
+                             X = matrix(1,nrow = length(train.list[[trial]]),ncol=1), # intercepts
+                             Z = rice.geno.impute.complete[train.list[[trial]],])
+    bigRR.train.tmp.update <- bigRR_update(bigRR.train.tmp,Z =  rice.geno.impute.complete[train.list[[trial]],]) 
+    tmp.predict <- data.frame(observed=rice.pheno.complete$Seed.number.per.panicle[test.70],
+                              predicted=bigRR.train.tmp.update$beta + rice.geno.impute.complete[test.70,] %*% bigRR.train.tmp.update$u)
+   # print(plot(tmp.predict))
+    cor(tmp.predict)[1,2]
+  })
+})
+save.image(file = "Genome_Prediction_Rice_Fits.Rdata")
+```
+
+```{r}
+summary(train.size.results)
+```
+
