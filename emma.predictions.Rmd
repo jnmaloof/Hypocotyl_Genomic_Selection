@@ -1,0 +1,95 @@
+---
+title: "emma predictions"
+output: html_notebook
+---
+
+Want to use Daniele's emma results to see how well those work for making predictions of phenotype in a test set, from a training set.
+
+Trying to find files.  Looking in directory "big_hyps_newest_associations"
+
+file "emma.newest.results.tair9.csv"
+
+```{r}
+datadir <- ("~/Documents/Lab Data/Daniele/big_hyps/big_hyps_newest_associations/")
+tair <- read.csv(file.path(datadir,"emma.newest.results.TAIR9.csv"))
+summary(tair)
+```
+These are p-values, not effect sizes
+
+Try loading in some .Rdata images
+
+```{r}
+load("~/Documents/Lab Data/Daniele/big_hyps/big_hyps_newest_associations/Dec12_2011.RData")
+```
+Yes this is where the info is...
+
+```{r}
+dim(snps) #snp info
+dim(emma.newest.results)
+head(emma.newest.results)
+dim(emma.newest.results.TAIR9)
+head(emma.newest.results.TAIR9)
+dim(emma.newest.results.TAIR9.filtered) # too short 
+```
+Since the "snps" object and the "emma.newest.results" and "emma.newest.results.TAIR9" objects all have the same nrow I am going to _assume_ that everything is in the same order.
+
+Difference between TAIR9 version?
+```{r}
+all(emma.newest.results$Position==emma.newest.results.TAIR9$Positions)
+all(emma.newest.results$Chromosome==emma.newest.results.TAIR9$Chromosome)
+
+```
+Postions don't line up but chromosomes do.  Shouldn't matter for my analysis
+
+Are the different emma.N objects per chromosome?
+
+```{r}
+sum(sapply(ls(pattern="emma\\.[1-5]$"),function(x) nrow(get(x))))
+```
+yes.  and the emma.n.f are the filtered version of the above.
+
+```{r}
+head(newest.high.ML.emma)
+head(emma.newest.results)
+all(emma.newest.results$high==newest.high.ML.emma[,1])
+```
+
+OK but I still can't find effects for the full emma run...
+
+I think this is because they weren't calculated.  See script "variance.components.R"
+
+However they were calculated on the combined emma + KW list that had P < 10e-4 (528 total) so I can just use that.  Would be nice to also split it back out into KW and emma, if possible.  But start with all 528.
+
+```{r}
+high.effect.snps <- cbind(vc$high,snps[as.numeric(rownames(vc$high)),])
+dim(high.effect.snps)
+head(high.effect.snps[,1:20])
+tail(high.effect.snps[,1:20])
+emma.newest.results.TAIR9[214337,]
+high.fitted <- t(high.effect.snps$effect %*% 
+                   as.matrix(high.effect.snps[,grep("X[0-9]",colnames(high.effect.snps))]))
+high.fitted
+plot(phenos.t[,"high.RFR"],high.fitted)
+cor(phenos.t[,"high.RFR"],high.fitted)
+```
+
+So the scale is all wrong because the effect sizes are way over-estimated and there are no doubt highly correlated SNPs here.  But at least it is kind of working.
+
+What if we look at the emma only SNPs?
+
+```{r}
+high.effect.snps.emma <- high.effect.snps[as.character(which(-log10(emma.newest.results.TAIR9$high)>=4)),] 
+high.fitted.emma <- t(high.effect.snps.emma$effect %*% 
+                        as.matrix(high.effect.snps.emma[,grep("X[0-9]",colnames(high.effect.snps.emma))]))
+head(high.fitted.emma)
+plot(phenos.t[,"high.RFR"],high.fitted.emma)
+cor(phenos.t[,"high.RFR"],high.fitted.emma)
+```
+
+
+Again the scale is non-sensical but the correlation is OK (Although nowhere near as good as in the Genomic Selection algorithms)
+
+## How well does this predict test set from train?
+
+Wait I can't do this without re-running EMMA.  And that is not going to happen...
+
