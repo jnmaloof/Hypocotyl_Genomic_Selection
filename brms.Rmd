@@ -6,30 +6,174 @@ output: html_notebook
 ```{r}
 library(brms)
 rstan_options(auto_write = TRUE)
-options(mc.cores = parallel::detectCores())
+options(mc.cores = 2)
 ```
 
 
 get data
 ```{r}
 load("pheno.geno.Rdata")
+geno.center <- geno*2-1
 ```
 
 test how to make large formula
 ```{r}
-my.formula <- as.formula(paste("high.RFR ~", paste(colnames(pheno.geno[10:209]),collapse="+")))
+my.formula <- paste("high.RFR ~", paste(colnames(geno)[1:15],collapse="+"))
 ```
 
 ```{r}
-brm1 <- brm(my.formula, data=pheno.geno,
+brms1 <- brm(my.formula, data=pheno.geno,
             prior=c(
               set_prior("horseshoe(3,scale_global=0.1)",class="b"),
               set_prior("normal(3.5,1)",class="Intercept")
             ),
-            sparse=TRUE,
-            iter=20000,
             control = list(adapt_delta = 0.8)
 )
-brm1
 ```
 
+
+```{r}
+scode1 <- make_stancode(my.formula, data=pheno.geno,
+            prior=c(
+              set_prior("horseshoe(3,scale_global=0.1)",class="b"),
+              set_prior("normal(3.5,1)",class="Intercept")
+            ),
+            control = list(adapt_delta = 0.8)
+)
+
+scode1
+```
+
+```{r}
+sdata1 <- make_standata(my.formula, data=pheno.geno,
+            prior=c(
+              set_prior("horseshoe(3,scale_global=0.1)",class="b"),
+              set_prior("normal(3.5,1)",class="Intercept")
+            )
+)
+
+names(sdata1)
+str(sdata1)
+```
+
+```{r}
+sdata_full <- list(
+  N=as.integer(169),
+  Y=pheno.geno$high.RFR,
+  K=ncol(geno),
+  X=geno,
+  prior_only=as.integer(0)
+)
+```
+
+45 seconds for 10, 450 for 100, 4500 for 1000, 9000 for 2000 = 2.5  hours?
+```{r, eval=FALSE}
+system.time(stan_full1 <- stan(
+  model_code=scode1,
+  data=sdata_full,
+  verbose = TRUE,
+# sample_file="stan_full1_samples",
+#  diagnostic_file = "stan_full1_diagnostic_file",
+  iter = 2000,
+cores=2,
+refresh=10,
+))
+```
+
+Reading STAN boards, it seems that STAN doesn't do well with highly correlated predictors.  Maybe I should try doing PCA or MDS and then fit STAN on that...
+
+
+```{r}
+geno.pc <- prcomp(t(geno))
+dim(geno.pc$rotation)
+dim(geno.pc$x)
+plot(geno.pc)
+summary(geno.pc)
+head(geno.pc$x)
+head(geno.pc$rotation)
+```
+```{r}
+pheno.pc <- as.data.frame(cbind(pheno,geno.pc$rotation))
+head(pheno.pc[,1:20])
+```
+
+test how to make large formula
+```{r}
+my.formula2 <- paste("high.RFR ~", paste(grep("PC",colnames(pheno.pc),value=TRUE)[1:100],collapse="+"))
+```
+
+```{r}
+brms2 <- brm(my.formula2, data=pheno.pc[1:120,],
+            prior=c(
+              set_prior("horseshoe(3,scale_global=0.5)",class="b"),
+              set_prior("normal(3.5,1)",class="Intercept")
+            ),
+            iter=20000,
+            warmup = 3000,
+            control = list(adapt_delta = 0.9)
+)
+```
+```{r}
+shinystan::launch_shinystan(brms2,ask=FALSE)
+summary(brms2)
+```
+```{r}
+fitted <- as.data.frame(predict(brms2))
+predicted <- as.data.frame(predict(brms2,pheno.pc[121:169,]))
+plot(pheno.pc$high.RFR[1:120],fitted$Estimate)
+cor(pheno.pc$high.RFR[1:120],fitted$Estimate)
+plot(pheno.pc$high.RFR[121:169],predicted$Estimate)
+cor(pheno.pc$high.RFR[121:169],predicted$Estimate)
+```
+
+```{r}
+brms3 <- update(brms2,
+            prior=c(
+              set_prior("horseshoe(3,scale_global=1)",class="b"),
+              set_prior("normal(3.5,1)",class="Intercept")
+            ),
+            iter=20000,
+            warmup = 3000,
+            control = list(adapt_delta = 0.9)
+)
+```
+
+```{r}
+summary(brms3)
+```
+```{r}
+fitted <- as.data.frame(predict(brms3))
+predicted <- as.data.frame(predict(brms3,pheno.pc[121:169,]))
+plot(pheno.pc$high.RFR[1:120],fitted$Estimate)
+cor(pheno.pc$high.RFR[1:120],fitted$Estimate)
+plot(pheno.pc$high.RFR[121:169],predicted$Estimate)
+cor(pheno.pc$high.RFR[121:169],predicted$Estimate)
+```
+
+
+```{r}
+brms4 <- update(brms2,
+            prior=c(
+              set_prior("horseshoe(3,scale_global=.1)",class="b"),
+              set_prior("normal(3.5,1)",class="Intercept")
+            ),
+            iter=20000,
+            warmup = 3000,
+            control = list(adapt_delta = 0.9)
+)
+```
+
+```{r}
+summary(brms4)
+```
+
+```{r}
+fitted <- as.data.frame(predict(brms4))
+predicted <- as.data.frame(predict(brms4,pheno.pc[121:169,]))
+plot(pheno.pc$high.RFR[1:120],fitted$Estimate)
+cor(pheno.pc$high.RFR[1:120],fitted$Estimate)
+plot(pheno.pc$high.RFR[121:169],predicted$Estimate)
+cor(pheno.pc$high.RFR[121:169],predicted$Estimate)
+loo(brms2,brms3,brms4)
+```
+Ultimately all of these models are terrible at predicting the test set.  Probably because the individual important SNPs are not captured in the PCs
