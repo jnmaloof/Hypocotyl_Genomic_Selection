@@ -3,12 +3,12 @@ title: "Getting Started with Genomic Prediction"
 author: "Julin Maloof"
 date: "November 22, 2016"
 output: 
-  ioslides_presentation:
-    widescreen: true
-    incremental: true
-    fig_width: 6
-    fig_height: 4
-    fig_caption: false
+ioslides_presentation:
+widescreen: true
+incremental: true
+fig_width: 6
+fig_height: 4
+fig_caption: false
 ---
 
 ```{r setup, include=FALSE}
@@ -24,6 +24,14 @@ library(rrBLUP)
 library(BGLR)
 load("Genome_Prediction_Fits.Rdata")
 ```
+
+## RMarkdown presentation
+
+This presentation made in R Markdown.
+
+The file is available at:
+
+https://github.com/jnmaloof/Hypocotyl_Genomic_Selection
 
 # Genomic Selection Intro
 
@@ -71,12 +79,12 @@ $hyp \sim \beta1*M1 + \beta2*M2 + \beta3*M3 + ... +\beta250000*M250000$
 * Standard regression models do not perform well with many predictors
 * If we expect that most predictors will have an effect size of ~ 0 (we do in this case), use _penalized regression_
 * Can be done using frequentist framework:
-  * "Penalize" models for non-zero coefficients
-  * Lasso Regression, Ridge Regression, Elastic Net
+* "Penalize" models for non-zero coefficients
+* Lasso Regression, Ridge Regression, Elastic Net
 * Can be done using Bayesian framework:
-  * Use priors strongly biased towards zero
-  * Horseshoe, Laplace, Student's T, etc.
-  
+* Use priors strongly biased towards zero
+* Horseshoe, Laplace, Student's T, etc.
+
 # Today's goal
 
 ## Tool exploration
@@ -84,10 +92,10 @@ $hyp \sim \beta1*M1 + \beta2*M2 + \beta3*M3 + ... +\beta250000*M250000$
 * The KIAT project aims to use Genomic Selection techniques for predicitive breeding
 * My goal was to start becoming familiar with the available tools in R
 * Use hypocotyl data set from Filiault and Maloof (2012)
-    * 169 Arabidopsis natural accessions
-    * 250,000 SNPs
+* 169 Arabidopsis natural accessions
+* 250,000 SNPs
 * Train on 120 and try to predict remaining 49
-                              
+
 ```{r, include=FALSE}
 ## get the data
 
@@ -138,8 +146,8 @@ pl + facet_wrap(~ model)
 
 ```{r, echo=FALSE, eval=TRUE}
 hyp.predict.wide <- data.frame(observed=pheno$high.RFR,
-                          bigRR=bigRR1$beta + geno %*% bigRR1$u,
-                          bigRR.HME=bigRR1.update$beta + geno %*% bigRR1.update$u) 
+                               bigRR=bigRR1$beta + geno %*% bigRR1$u,
+                               bigRR.HME=bigRR1.update$beta + geno %*% bigRR1.update$u) 
 hyp.predict <-  melt(hyp.predict.wide,id.vars="observed",variable.name="model",value.name = "predicted")
 pl <- ggplot(hyp.predict,aes(x=observed,y=predicted,color=model))
 pl + geom_point() + ggtitle("two bigRR models, all data")
@@ -156,15 +164,15 @@ geno.train.120 <- geno.center[1:120,]
 geno.test.120 <- geno.center[121:169,]
 K.mat.train.120 <- K.mat[1:120,1:120]
 bigRR.train1 <- bigRR(y=pheno.train.120$high.RFR,
-                X = matrix(1,nrow = nrow(pheno.train.120),ncol=1), # intercepts
-                Z = geno.train.120)
+                      X = matrix(1,nrow = nrow(pheno.train.120),ncol=1), # intercepts
+                      Z = geno.train.120)
 bigRR.train1.update <- bigRR_update(bigRR.train1,Z = geno.train.120) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
 ```
 
 ```{r, echo=FALSE, eval=TRUE}
 hyp.predict.120.wide <- data.frame(observed=pheno.test.120$high.RFR,
-                          bigRR=bigRR.train1$beta + geno.test.120 %*% bigRR.train1$u,
-                          bigRR.HME=bigRR.train1.update$beta + geno.test.120 %*% bigRR.train1.update$u)
+                                   bigRR=bigRR.train1$beta + geno.test.120 %*% bigRR.train1$u,
+                                   bigRR.HME=bigRR.train1.update$beta + geno.test.120 %*% bigRR.train1.update$u)
 hyp.predict.120 <- melt(hyp.predict.120.wide,id.vars="observed",variable.name="model",value.name = "predicted")
 pl <- ggplot(hyp.predict.120,aes(x=observed,y=predicted,color=model))
 pl + geom_point() + ggtitle("two bigRR models, train on 120")
@@ -228,7 +236,8 @@ system.time(bglr.bl2 <- BGLR(y=pheno.train.120$high.RFR,
                              ETA=list(list(X=geno.train.120,model="BL"),
                                       list(K=K.mat.train.120,model="RKHS")),
                              verbose = FALSE,
-                             saveAt = "bglr_output/bglr.bl2_",
+                             R2=.75,
+                             saveAt = "bglr_output/bglr.bl2.R2.75_",
                              nIter=12000,burnIn = 2000))
 ```
 
@@ -317,32 +326,13 @@ plot_fitted_observed(bglr.bc2)
 plot_predicted_observed(bglr.bc2)
 ```
 
-```{r, eval=FALSE, echo=FALSE}
-#1# Estimated Marker Effects & posterior SDs
-bHat <- bglr.bl1$ETA[[1]]$b
-SD.bHat <- bglr.bl1$ETA[[1]]$SD.b
-plot(bHat, ylab='Estimated Marker Effect',
-type='p',cex=.5,col=4,main='Marker Effects')
-
-#2# Predictions
-  # Total prediction
-yHat<-bglr.bl1$yHat
-tmp<-range(c(pheno.train.120$high.RFR,yHat))
-plot(yHat~pheno.train.120$high.RFR,xlab='Observed',ylab='Predicted',col=2,
-            xlim=tmp,ylim=tmp); abline(a=0,b=1,col=4,lwd=2)
-
-# predict for the test set
-prediction <- geno.test.120 %*% bglr.bl1$ETA[[1]]$b + bglr.bl1$mu
-plot(prediction~pheno.test.120$high.RFR,xlab='Observed',
-ylab='Predicted',col=2)
-cor(prediction,pheno.test.120$high.RFR)
-
+```{r,eval=FALSE,echo=FALSE}
 #3# Goodness of fit and related statistics
-   bglr.bl1$fit
-   blgr.bl1$varE # compare to var(y)
+bglr.bl1$fit
+blgr.bl1$varE # compare to var(y)
 
 #4# Trace plots
-  list.files()
+list.files("bglr_output")
 # Residual variance
 varE<-scan('varE.dat') 
 plot(varE,type='o',col=2,cex=.5,ylab=expression(var[e])); abline(h=bglr.bl1$varE,col=4,lwd=2); abline(v=bglr.bl1$burnIn/bglr.bl1$thin,col=4)
@@ -351,6 +341,17 @@ lambda<-scan('ETA_1_lambda.dat')
 plot(lambda,type='o',col=2,cex=.5,ylab=expression(lambda)); abline(h=bglr.bl1$ETA[[1]]$lambda,col=4,lwd=2); abline(v=bglr.bl1$burnIn/bglr.bl1$thin,col=4)
 ```
 
+Residual Variance
+```{r}
+varE.files <- dir("bglr_output",pattern="varE.dat",full.names = TRUE)
+for (f in varE.files) {
+  tmp.varE <- scan(f)
+  plot(tmp.varE,type='l',col=2,cex=.5,ylab=expression(var[e]),main=basename(f))
+  abline(h=bglr.bl1$varE,col=4,lwd=2); abline(v=bglr.bl1$burnIn/bglr.bl1$thin,col=4)
+}
+```
+These are clearly autcorrelatd and mixing that well...
+
 # To Do
 
 ## To do
@@ -358,6 +359,91 @@ plot(lambda,type='o',col=2,cex=.5,ylab=expression(lambda)); abline(h=bglr.bl1$ET
 * pull different test and training sets
 * Check BGLR convergence
 * Compare to traditional GWAS
-    * Marker effects
-    * Predictions
+* Marker effects
+* Predictions
 * Crosses
+
+# multiple test and training sets
+
+## multiple test and training sets
+
+pull training and test sets at random and check performance both of bigRR and BGLR
+
+first create lists of random train and test sets.  training size is 120
+
+```{r}
+n.trials <- 100
+train.list <- lapply(1:n.trials,function(x) sample(1:nrow(pheno),size = 120, replace = FALSE))
+test.list <- lapply(train.list, function(x) setdiff(1:nrow(pheno),x))
+```
+
+## run bigRR and record correlations
+
+```{r}
+bigRR.120.100trials <- sapply(1:n.trials,function(trial) {
+  bigRR.train.tmp <- bigRR(y=pheno$high.RFR[train.list[[trial]]],
+                           X = matrix(1,nrow = length(train.list[[trial]]),ncol=1), # intercepts
+                           Z = geno[train.list[[trial]],])
+  bigRR.train.tmp.update <- bigRR_update(bigRR.train.tmp,Z =  geno[train.list[[trial]],]) 
+  tmp.predict <- data.frame(observed=pheno$high.RFR[test.list[[trial]]],
+                            predicted=bigRR.train.tmp.update$beta + geno[test.list[[trial]],] %*% bigRR.train.tmp.update$u)
+  c(Pearson=cor(tmp.predict)[1,2],Kendall=cor(tmp.predict,method="kendall")[1,2])
+})
+save.image(file = "Genome_Prediction_Fits.Rdata")
+summary(t(bigRR.120.100trials))
+```
+
+## Bayesian Lasso Loop
+
+```{r, eval=FALSE}
+library(snowfall)
+sfInit(cpus = 2)
+bglr.bl.120.100trials <- sfApply(1:n.trials,function(trial) {
+  
+  bl.tmp <-  BGLR(y=pheno$high.RFR[train.list[[trial]]],
+                  ETA=list(list(X=geno[train.list[[trial]],],model="BL"),
+                           list(K=K.mat[train.list[[trial]],train.list[[trial]]],model="RKHS")),
+                  verbose = FALSE,
+                  nIter=5000,burnIn = 1000)
+  prediction <- geno[test.list[[trial]],] %*% bl.tmp$ETA[[1]]$b + bl.tmp$mu
+  
+  c(Pearson=cor(prediction,pheno.test.120$high.RFR)[1,2],Kendall=cor(prediction,pheno.test.120$high.RFR,method = "kendall")[1,2])
+  save.image(file = "Genome_Prediction_Fits.Rdata")
+})
+summary(bglr.bl.120.100trials)
+```
+
+
+## BayesC Loop
+
+```{r, eval=FALSE}
+library(snowfall)
+sfInit(parallel=TRUE,cpus = 2)
+sfLibrary(BGLR)
+sfExport("n.trials","test.list","train.list","geno","pheno","K.mat")
+bglr.bc.120.100trials <- sfSapply(1:n.trials,function(trial) {
+  print(trial)
+  
+  bl.tmp <-  BGLR(y=pheno$high.RFR[train.list[[trial]]],
+                  ETA=list(list(X=geno[train.list[[trial]],],model="BayesC"),
+                           list(K=K.mat[train.list[[trial]],train.list[[trial]]],model="RKHS")),
+                  verbose = FALSE,
+                  nIter=5000,burnIn = 1000)
+  tmp.predict <- data.frame(observed=pheno$high.RFR[test.list[[trial]]],
+                            predicted=geno[test.list[[trial]],] %*% bl.tmp$ETA[[1]]$b + bl.tmp$mu)
+  
+  c(Pearson=cor(tmp.predict)[1,2],Kendall=cor(tmp.predict,method="kendall")[1,2])
+})
+save.image(file = "Genome_Prediction_Fits.Rdata")
+summary(t(bglr.bc.120.100trials))
+```
+
+```{r}
+plot(bigRR.120.100trials["Pearson",],bglr.bc.120.100trials["Pearson",])
+```
+
+## Next
+
+Effect of training size (should keep test size the same)
+
+
