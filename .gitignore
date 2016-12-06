@@ -3,4 +3,5 @@
 .RData
 .Ruserdata
 *_cache
+*_Fits.Rdata
 
