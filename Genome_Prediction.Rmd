@@ -4,6 +4,7 @@ author: "Julin Maloof"
 date: "November 22, 2016"
 output: 
   ioslides_presentation:
+    center: false
     widescreen: true
     incremental: true
     fig_width: 6
