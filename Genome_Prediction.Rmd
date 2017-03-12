@@ -247,7 +247,6 @@ system.time(bglr.bl2 <- BGLR(y=pheno.train.120$high.RFR,
 
 Fit a BayesC model with
 
-<<<<<<< HEAD
 ```{r, include=FALSE}
 system.time(bglr.bc1 <- BGLR(y=pheno.train.120$high.RFR, 
                              ETA=list(list(X=geno.train.120,model="BayesC")),
