@@ -356,7 +356,7 @@ for (f in varE.files) {
   abline(h=bglr.bl1$varE,col=4,lwd=2); abline(v=bglr.bl1$burnIn/bglr.bl1$thin,col=4)
 }
 ```
-These are clearly autcorrelatd and mixing that well...
+These are clearly autcorrelatd and not mixing that well...
 
 # To Do
 
