@@ -1,12 +1,11 @@
 ---
 title: "Getting Started with Genomic Prediction"
 author: "Julin Maloof"
-date: "November 22, 2016"
+date: "Updated March 21-25, 2017"
 output: 
   ioslides_presentation:
     center: false
     widescreen: true
-    incremental: true
     fig_width: 6
     fig_height: 4
     fig_caption: false
@@ -16,14 +15,68 @@ output:
 knitr::opts_chunk$set(echo = TRUE,cache = TRUE,autodep = TRUE,eval=FALSE)
 ```
 
-```{r, include=FALSE, eval=TRUE, cache=FALSE}
+```{r libraries, include=FALSE, eval=TRUE, cache=FALSE}
 library(bigRR)
 library(ggplot2)
 library(magrittr)
 library(reshape2)
 library(rrBLUP)
 library(BGLR)
-load("Genome_Prediction_Fits.Rdata")
+library(gridExtra)
+library(snowfall)
+#load("Genome_Prediction_Fits.Rdata")
+```
+
+```{r, include=FALSE, eval=TRUE, cache=TRUE}
+
+SubsetBigRR <- function(fit,proportion) {
+  which(abs(fit$u) > quantile(abs(fit$u),1-proportion))
+}
+
+FitBigRR <- function(phenotype, genotype) {
+  
+  bigRR1 <- bigRR(y=phenotype,
+                  X = matrix(1,nrow = length(phenotype),ncol=1), # intercepts
+                  Z = genotype) #should be centered
+  
+  #this allows heteroscedatic shrinkage (stronger shrinkage on some SNPs than others).
+  bigRR1.update <- bigRR_update(bigRR1,Z = genotype) 
+  return(bigRR1.update)
+} 
+
+PredictBigRR <- function(model,genotype,geno.subset=NA) {
+  # given a bigRR model and a list of genotypes, compute predicted phenotype
+  if(is.na(geno.subset[1])) {
+    prediction <- model$beta + genotype %*% model$u
+  } else {
+    prediction <- model$beta + genotype[,geno.subset] %*% model$u[geno.subset,]
+  }
+  return(prediction)
+}
+
+FitBayesC <- function(phenotype, genotype, geno.subset) {
+  
+}
+
+PredictBGLR <- function(fit, genotype) {
+  
+}
+
+PlotPrediction <- function(prediction.new,prediction.original,phenotype,optimize) {
+  if (optimize=='max') x=max(prediction.new) else x=min(prediction.new)
+  if (is.na(prediction.original)) {
+    plot.df <- as.data.frame(prediction.new)
+    plot.df$type <- "new"
+  } else {
+    plot.df <- as.data.frame(rbind(prediction.new,prediction.original))
+    plot.df$type <- rep(c("cross","original"), c(nrow(prediction.new),nrow(prediction.original)))
+  }
+  print(head(plot.df))
+  pl <- ggplot(plot.df,aes_(x=as.name(phenotype),fill=~type))
+  pl <- pl + geom_density(alpha=0.5)
+  pl <- pl + geom_segment(x=x,xend=x,y=.1,yend=0,col="blue",size=1.5,arrow=arrow())
+  pl + ggtitle("Distribution of Phenotypes")
+}
 ```
 
 ## RMarkdown presentation
@@ -39,10 +92,10 @@ https://github.com/jnmaloof/Hypocotyl_Genomic_Selection
 
 ## Goal: Predictive Breeding
 
-* Want to breed plants for better performance, resistance, etc.
+* Want to breed plants for better performance, lipid production, etc.
 * Use genetic / genomic data to predict best plants for breeding
 
-## Old school: Marker assisted selection
+## Old school: Marker assisted selection {.build}
 
 * Use QTL or GWAS to find markers linked to trait of interest
 * Genotype at those markers to "pyramid" during breeding
@@ -51,57 +104,85 @@ https://github.com/jnmaloof/Hypocotyl_Genomic_Selection
 ## Genomic Selection {.build}
 
 * Instead of focusing on a few main loci, try to predict the effects of all loci
-* QTL and GWAS fit a separate regression model for each location being considered
+* _Old:_ QTL and GWAS fit a separate regression model for each location being considered
 
-$hyp \sim \beta1*M1$
+$oil \sim \beta0 + \beta1*M1$
 
-$hyp \sim \beta2*M2$
+$oil \sim \beta0 + \beta2*M2$
 
-$hyp \sim \beta3*M3$
+$oil \sim \beta0 + \beta3*M3$
 
 ...
 
-$hyp \sim  \beta * M250000$
+$oil \sim  \beta * M250000$
+
+* _New:_ Genomic Selection fits a model to all markers simultaneously
+
+$oil \sim \beta1*M1 + \beta2*M2 + \beta3*M3 + ... +\beta250000*M250000$
+
+## Genomic Selection {.build}
 
 * Genomic Selection fits a model to all markers simultaneously
 
-$hyp \sim \beta1*M1 + \beta2*M2 + \beta3*M3 + ... +\beta250000*M250000$
-
-## Genomic Selection
-
-* Genomic Selection fits a model to all markers simultaneously
-
-$hyp \sim \beta1*M1 + \beta2*M2 + \beta3*M3 + ... +\beta250000*M250000$
+$oil \sim \beta1*M1 + \beta2*M2 + \beta3*M3 + ... +\beta250000*M250000$
 
 * Once this model is fit then we can predict the performance of other strains
 * Challenge: How to fit a regression model with hundreds of thousands of predictors?
 
-## Penalized Regression
+## Fitting a model (standard regression) {.build}
+
+What is the best value for $\beta$?
+
+```{r, fig.width=2,fig.height=2,echo=FALSE, eval=TRUE}
+data <- data.frame(
+  genotype = rep(c(0,1,2),c(10,10,10)),
+  oil = rnorm(30,rep(c(10,20,30),c(10,10,10)),sd = 4))
+pl <- ggplot(data,aes(x=genotype,y=oil)) + geom_point() + geom_smooth(method="lm",level=.99)
+pl + scale_x_continuous(breaks = 0:2, labels=c("0 (aa)","1 (aA)","2 (AA)")) + ylab("oil content") + xlab("M1 genotype")
+```
+
+In standard regression with one or just a few predictors, $oil \sim \beta1*M1$, choose the $\beta$ that minimizes the residual sum of squares (RSS), i.e the distance from the line
+$$ RSS =  \sum_{i=1}^n (y_i - \beta_0 + \beta_1*M1_i )^2$$
+
+## RSS more than one predictor {.build}
+
+Instead of
+
+$$ RSS =  \sum_{i=1}^n (y_i - \beta_0 + \beta_1*M1_i )^2$$
+
+For more than one predictor, we can generalize as
+$$ RSS =  \sum_{i=1}^n (y_i - \beta_0 + \sum_{j=1}^p\beta_j*M_{i,j} )^2 $$
+
+## Fitting  model (penalized regression) {.build}
 
 * Standard regression models do not perform well with many predictors
 * If we expect that most predictors will have an effect size of ~ 0 (we do in this case), use _penalized regression_
-* Can be done using frequentist framework:
+* Penalized regression _penalizes_ models based on the number of predictors.  For example (lasso), minimize:
+$$  \sum_{i=1}^n (y_i - \beta_0 + \sum_{j=1}^p\beta_j*M_{i,j} )^2 + \lambda \sum_{j=1}^p|\beta_j| $$
+
+$$ = RSS + \lambda \sum_{j=1}^p|\beta_j|$$
+
+* Where $\lambda$ is a tuning parameter
 * "Penalize" models for non-zero coefficients
-* Lasso Regression, Ridge Regression, Elastic Net
-* Can be done using Bayesian framework:
+* Other versions include Ridge Regression, Elastic Net
+
+## Bayesian Penalized regression
+
 * Use priors strongly biased towards zero
 * Horseshoe, Laplace, Student's T, etc.
 
-# Today's goal
+# Examples
 
 ## Tool exploration
 
-* The KIAT project aims to use Genomic Selection techniques for predicitive breeding
-* My goal was to start becoming familiar with the available tools in R
 * Use hypocotyl data set from Filiault and Maloof (2012)
 * 169 Arabidopsis natural accessions
 * 250,000 SNPs
-* Train on 120 and try to predict remaining 49
 
-```{r, include=FALSE}
+```{r, include=FALSE, eval=TRUE}
 ## get the data
 
-#Also center the genotpyes, so that the genotypes are represented as -1, 0, +1, as needed by some packages.
+#Also center the genotypes, so that the genotypes are represented as -1, 0, +1, as needed by some packages.
 
 load("pheno.geno.Rdata")
 geno.cols <- grep("^V",colnames(pheno.geno))
@@ -120,70 +201,147 @@ pheno <- as.data.frame(pheno)
 * Package bigRR (big Ridge Regression) uses optimized code to fit penalized Ridge Regression models.  
 * Enables separate shrinkage parameters to be used for each marker, in a two-step process
 
-```{r, include=FALSE}
-bigRR1 <- bigRR(y=pheno$high.RFR,
-                X = matrix(1,nrow = nrow(pheno),ncol=1), # intercepts
-                Z = geno.center)
-bigRR1.update <- bigRR_update(bigRR1,Z = geno.center) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
+```{r, include=FALSE, eval=TRUE}
+bigRR1 <- FitBigRR(phenotype = pheno$high.RFR,genotype = geno.center)
 ```
 
-## compare models with uniform and variable shrinkage
+## Two steps of model validation
 
-using all data.  Plot predicted marker effects
+We need to test the genomic prediction models that we create:
 
-```{r, include=FALSE}
-snpBlups <- data.frame(bigRR=bigRR1$u, bigRR.HME=bigRR1.update$u,index=1:nrow(bigRR1$u)) %>% melt(id.vars="index",variable.name="model")
-head(snpBlups)
-summary(snpBlups)
-```
+1) Compare fitted data with observations.  Can the model reproduce the observations used to create the model?
+
+2) Split the data into "training" and "test" sets.  
+
+## BigRR Fitted vs original, all data
 
 ```{r, echo=FALSE, eval=TRUE}
-snpBlups <- snpBlups[sample(nrow(snpBlups)),] #for a better plot (if not facetting), randomize the order of the observations
-pl <- ggplot(snpBlups,aes(x=index,y=value,color=model))
-pl <- pl + geom_point(size=.5,alpha=.5)
-pl + facet_wrap(~ model)
+prediction.original <- PredictBigRR(bigRR1,geno)
+
+cor.original <- cor(pheno$high.RFR,prediction.original)
+
+pl.fit <- qplot(x = pheno$high.RFR,y=prediction.original,geom = "point")
+pl.fit <- pl.fit + xlab("Original") + ylab("Fitted") + ggtitle(paste("Fitted vs. Original, All Data; correlation: ",round(cor.original,4)))
+
+pl.fit
 ```
 
-## plot predicted versus actual (using all data)
-
-```{r, echo=FALSE, eval=TRUE}
-hyp.predict.wide <- data.frame(observed=pheno$high.RFR,
-                               bigRR=bigRR1$beta + geno %*% bigRR1$u,
-                               bigRR.HME=bigRR1.update$beta + geno %*% bigRR1.update$u) 
-hyp.predict <-  melt(hyp.predict.wide,id.vars="observed",variable.name="model",value.name = "predicted")
-pl <- ggplot(hyp.predict,aes(x=observed,y=predicted,color=model))
-pl + geom_point() + ggtitle("two bigRR models, all data")
-cor(hyp.predict.wide)
-```
-fits the model data well
+So at least the model can reproduce the origninal data.
 
 ## predict new observations
 
+Here create 100 training / test sets where the training sets are a randomly picked 75% of the lines and the test sets are the remaining 25%.
 
-```{r, include=FALSE}
-pheno.train.120 <- pheno[1:120,]
-pheno.test.120 <- pheno[121:169,]
-geno.train.120 <- geno.center[1:120,]
-geno.test.120 <- geno.center[121:169,]
-K.mat.train.120 <- K.mat[1:120,1:120]
-bigRR.train1 <- bigRR(y=pheno.train.120$high.RFR,
-                      X = matrix(1,nrow = nrow(pheno.train.120),ncol=1), # intercepts
-                      Z = geno.train.120)
-bigRR.train1.update <- bigRR_update(bigRR.train1,Z = geno.train.120) #this allows heteroscedatic shrinkage (stronger shrinkage on SNPs than others).
+```{r, include = FALSE, eval=FALSE}
+percent <- 75 # size of training set
+iterations <- 100
+phenotype <- pheno$high.RFR
+train.list <- lapply(1:iterations,function(x) sample(1:length(phenotype),size = round(length(phenotype)*percent/100), replace = FALSE))
+test.list <- lapply(train.list, function(x) setdiff(1:length(phenotype),x))
+
+sfInit(parallel = TRUE, cpus = 4)
+sfLibrary(bigRR)
+sfExport("percent","geno.center","phenotype","FitBigRR","PredictBigRR","train.list", "test.list")
+CV.trials <- sfLapply(1:iterations,function(trial) {
+  fit.tmp <- FitBigRR(phenotype=phenotype[train.list[[trial]]],
+                      genotype = geno.center[train.list[[trial]],])
+  data.frame(observed=phenotype[test.list[[trial]]],
+             predicted=PredictBigRR(fit.tmp,genotype = geno.center[test.list[[trial]],]))
+})
+sfStop()
+
+corrs <- data.frame(Pearson=sapply(CV.trials,function(trial) c(Pearson=cor(trial)[1,2])))
+corrs.m <- melt(corrs,variable.name="method",value.name="correlation")
+
+pl.cor <- ggplot(corrs.m,aes(x=method,y=correlation)) +
+  geom_boxplot() +
+  ggtitle("Summary of Original vs. Predicted \n correlation in CV trials")
+
+example.trial <- which(abs(corrs$Pearson-median(corrs$Pearson)) ==
+                         min(abs(corrs$Pearson-median(corrs$Pearson))))[1]
+
+pl.CV.example <- qplot(
+  x=CV.trials[[example.trial]]$observed,
+  y=CV.trials[[example.trial]]$predicted,geom="point")
+pl.CV.example <- pl.CV.example + 
+  xlab("Original") + 
+  ylab("Predicted") + ggtitle("Predicted vs. Original, median CV Trial")
+save.image("Mar2017_Genome_Prediction_Fits.Rdata")
+```
+
+```{r, eval=TRUE, echo=FALSE}
+load("Mar2017_Genome_Prediction_Fits.Rdata")
+grid.arrange(pl.cor,pl.CV.example,ncol=2, widths=c(3,5))
+```
+
+
+## how many SNPs do we need? {.build}
+
+For doing predictions of new crosses it would be nice to not use *all* of the markers (for computational efficiency).  Test if top 10% of markers is sufficient.
+
+First for the full model
+```{r, echo=FALSE, eval=TRUE, include=FALSE}
+
+geno.subset <- SubsetBigRR(bigRR1,.1)
+
+bigRR2 <- FitBigRR(pheno$high.RFR,geno.center[,geno.subset])
+
+prediction.bigRR2 <- PredictBigRR(bigRR2,geno.center[,geno.subset])
 ```
 
 ```{r, echo=FALSE, eval=TRUE}
-hyp.predict.120.wide <- data.frame(observed=pheno.test.120$high.RFR,
-                                   bigRR=bigRR.train1$beta + geno.test.120 %*% bigRR.train1$u,
-                                   bigRR.HME=bigRR.train1.update$beta + geno.test.120 %*% bigRR.train1.update$u)
-hyp.predict.120 <- melt(hyp.predict.120.wide,id.vars="observed",variable.name="model",value.name = "predicted")
-pl <- ggplot(hyp.predict.120,aes(x=observed,y=predicted,color=model))
-pl + geom_point() + ggtitle("two bigRR models, train on 120")
 
-cor(hyp.predict.120.wide)
+predict.pl.df <- data.frame(
+  observed=c(pheno$high.RFR,pheno$high.RFR),
+  fitted=c(prediction.original,prediction.bigRR2),
+  data=rep(c("Full","Best 10% Markers"),each=length(prediction.original))
+)
+
+pl <- ggplot(predict.pl.df,aes(x=observed,y=fitted,color=data))
+pl + geom_point() + ggtitle("original vs fitted")
 ```
 
-Better than nothing, but not as good as I hoped.  Try something else?
+The fit is actually _improved_ by using only the best markers.
+
+## predict new observations using only top 10% {.build}
+
+How does reducing the number of markers affect prediction of new observations?  Try this on the "median" training/test set from above
+
+```{r, include=FALSE, eval=TRUE}
+
+bigRR3 <- FitBigRR(phenotype=phenotype[train.list[[example.trial]]],
+                      genotype = geno.center[train.list[[example.trial]],])
+
+prediction.bigRR3 <- PredictBigRR(bigRR3,geno.center[test.list[[example.trial]],])
+
+geno.subset <- SubsetBigRR(bigRR3,.1)
+
+bigRR4 <- FitBigRR(phenotype=phenotype[train.list[[example.trial]]],
+                      genotype = geno.center[train.list[[example.trial]],geno.subset])
+
+prediction.bigRR4 <- PredictBigRR(bigRR4,geno.center[test.list[[example.trial]],geno.subset])
+```
+
+```{r echo=FALSE, eval=TRUE}
+predict.pl.df <- data.frame(
+  observed=rep(phenotype[test.list[[example.trial]]],2),
+  predicted=c(prediction.bigRR3,prediction.bigRR4),
+  data=rep(c("Full","Best 10% Markers"),each=length(prediction.bigRR3))
+)
+
+pl <- ggplot(predict.pl.df,aes(x=observed,y=predicted,color=data))
+pl + geom_point() + ggtitle("original vs predicted")
+```
+
+## predict new observations using only top 10%
+
+```{r, echo=FALSE, eval=TRUE}
+knitr::kable(round(cor(data.frame(observed=phenotype[test.list[[example.trial]]],
+                                   predicted.full=prediction.bigRR3,
+                                   predicted.10.percent=prediction.bigRR4)),3))
+```
+
+Conclusion: reducing to the best 10% of markers does not harm the predictions
 
 # rrBLUP
 
@@ -223,6 +381,11 @@ Two versions will be explored here
 * Bayes C
 
 Will fit with and without a population structure correction, K
+
+```{r, eval=TRUE}
+load("Genome_Prediction_Fits.Rdata")
+```
+
 
 ```{r, include=FALSE}
 system.time(bglr.bl1 <- BGLR(y=pheno.train.120$high.RFR, 
@@ -358,17 +521,6 @@ for (f in varE.files) {
 ```
 These are clearly autcorrelatd and not mixing that well...
 
-# To Do
-
-## To do
-
-* pull different test and training sets
-* Check BGLR convergence
-* Compare to traditional GWAS
-* Marker effects
-* Predictions
-* Crosses
-
 # multiple test and training sets
 
 ## multiple test and training sets
@@ -444,11 +596,25 @@ save.image(file = "Genome_Prediction_Fits.Rdata")
 summary(t(bglr.bc.120.100trials))
 ```
 
+## BayesC and bigRR
+100 trials with a training set of 120
 ```{r}
-plot(bigRR.120.100trials["Pearson",],bglr.bc.120.100trials["Pearson",])
+load("Genome_Prediction_Fits.Rdata")
 ```
 
-## Next
+```{r}
+plot(bigRR.120.100trials["Pearson",],bglr.bc.120.100trials["Pearson",],xlab="bigRR",ylab="BLGR BayesC")
+lines(x=c(.1,.8),y=c(.1,.8))
+sum(bigRR.120.100trials["Pearson",]>bglr.bc.120.100trials["Pearson",])
+```
+For the Arabidopsis data set these two methods perform very similarly, so might as well use the faster bigRR
 
-Effect of training size (should keep test size the same)
+# To Do
 
+## To do
+
+* Determine effect of training set size
+* Check BGLR convergence
+* Compare to traditional GWAS
+* Marker effects
+* Test crosses
