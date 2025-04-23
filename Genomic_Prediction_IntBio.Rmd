@@ -1,0 +1,324 @@
+---
+title: "Getting Started with Genomic Prediction"
+author: "Julin Maloof"
+date: "Updated April 23, 2025"
+output: 
+  ioslides_presentation:
+    center: false
+    widescreen: true
+    fig_width: 6
+    fig_height: 4
+    fig_caption: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE,autodep = TRUE,eval=FALSE)
+```
+
+```{r libraries, include=TRUE, eval=TRUE, cache=FALSE, message=FALSE}
+#library(bigRR)
+library(tidyverse)
+library(reshape2)
+library(rrBLUP)
+library(BGLR)
+library(gridExtra)
+library(snowfall)
+library(hglm)
+#load("Genome_Prediction_Fits.Rdata")
+```
+
+```{r, eval=TRUE}
+source("bigRR/R/bigRR.R")
+source("bigRR/R/bigRR_update.R")
+source("bigRR/R/bigRR-internal.R")
+source("bigRR/R/bigRR.default.R")
+source("bigRR/R/bigRR.formula.R")
+source("bigRR/R/plot.bigRR.R")
+source("bigRR/R/print.bigRR.R")
+source("bigRR/R/hat.transf.R")
+```
+
+
+```{r, include=FALSE, eval=TRUE, cache=TRUE}
+
+SubsetBigRR <- function(fit,proportion) {
+  which(abs(fit$u) > quantile(abs(fit$u),1-proportion))
+}
+
+FitBigRR <- function(phenotype, genotype) {
+  
+  bigRR1 <- bigRR(y=phenotype,
+                  X = matrix(1,nrow = length(phenotype),ncol=1), # intercepts
+                  Z = genotype) #should be centered
+  
+  #this allows heteroscedatic shrinkage (stronger shrinkage on some SNPs than others).
+  bigRR1.update <- bigRR_update(bigRR1,Z = genotype) 
+  return(bigRR1.update)
+} 
+
+PredictBigRR <- function(model,genotype,geno.subset=NA) {
+  # given a bigRR model and a list of genotypes, compute predicted phenotype
+  if(is.na(geno.subset[1])) {
+    prediction <- model$beta + genotype %*% model$u
+  } else {
+    prediction <- model$beta + genotype[,geno.subset] %*% model$u[geno.subset,]
+  }
+  return(prediction)
+}
+
+FitBayesC <- function(phenotype, genotype, geno.subset) {
+  
+}
+
+PredictBGLR <- function(fit, genotype) {
+  
+}
+
+PlotPrediction <- function(prediction.new,prediction.original,phenotype,optimize) {
+  if (optimize=='max') x=max(prediction.new) else x=min(prediction.new)
+  if (is.na(prediction.original)) {
+    plot.df <- as.data.frame(prediction.new)
+    plot.df$type <- "new"
+  } else {
+    plot.df <- as.data.frame(rbind(prediction.new,prediction.original))
+    plot.df$type <- rep(c("cross","original"), c(nrow(prediction.new),nrow(prediction.original)))
+  }
+  print(head(plot.df))
+  pl <- ggplot(plot.df,aes_(x=as.name(phenotype),fill=~type))
+  pl <- pl + geom_density(alpha=0.5)
+  pl <- pl + geom_segment(x=x,xend=x,y=.1,yend=0,col="blue",size=1.5,arrow=arrow())
+  pl + ggtitle("Distribution of Phenotypes")
+}
+```
+
+## RMarkdown presentation {.smaller}
+
+This presentation made in R Markdown.
+
+The file is available at:
+
+https://github.com/jnmaloof/Hypocotyl_Genomic_prediction/Genomic_Prediction_IntBio.Rmd
+
+(Or on IntBio Google Drive)
+
+
+# Genomic Prediction Intro
+
+## Goal: Need to predict phenotype from genotype
+
+* Need a single number per individual for IPM demography models
+* Use genomic data to predict growth, survival, reproduction, etc.
+
+## One possiblity: polygenic score (PGS) {.build}
+
+* Use GWAS to find markers linked to trait of interest
+* A separate statistical model is fit for each SNP to determine significance and allelic effect in the training population
+
+$growth \sim \beta0 + \beta1*SNP1$
+
+$growth \sim \beta0 + \beta2*SNP2$
+
+$growth \sim \beta0 + \beta3*SNP3$
+
+...
+
+$growth \sim  \beta * SNP5000000$
+
+
+## GWAS PGS predictions  {.build}
+
+* Genotype new individuals
+* Predictions are made by summing the allelic effects at each SNP based on the training GWAS
+
+$$PGS = \sum_{j=1}^{snps} \beta j *SNPj$$
+
+* Challenges:
+  - setting significance threshold (may miss out on small-effect loci or include irrelevant loci)
+  - can overestimate effect size of main loci (Beavis effect)
+* Still worth exploring...and method updates may alleviate some concerns
+
+## Genomic Prediction {.build}
+
+* Try to estimate the effects of all loci simultaneously
+* GWAS fits a separate regression model for each location being considered
+
+$growth \sim \beta0 + \beta1*SNP1$
+
+$growth \sim \beta0 + \beta2*SNP2$
+
+$growth \sim \beta0 + \beta3*SNP3$
+
+...
+
+$growth \sim  \beta * SNP5000000$
+
+* Genomic prediction fits a model to all markers simultaneously
+
+$growth \sim \beta1*SNP1 + \beta2*SNP2 + \beta3*SNP3 + ... +\beta5000000*SNP5000000$
+
+## Genomic Prediction {.build}
+
+* Genomic prediction fits a model to all markers simultaneously
+
+$growth \sim \beta1*SNP1 + \beta2*SNP2 + \beta3*SNP3 + ... +\beta5000000*SNP5000000$
+
+* Once this model is fit then we can predict the performance of new individuals
+* Challenge: How to fit a regression model with millions of predictors?
+
+## Fitting a model (standard regression) {.build}
+
+What is the best value for $\beta$?
+
+```{r, fig.width=2,fig.height=2,echo=FALSE, eval=TRUE, message=FALSE}
+data <- data.frame(
+  genotype = rep(c(0,1,2),c(10,10,10)),
+  flowering = rnorm(30,rep(c(10,20,30),c(10,10,10)),sd = 4))
+pl <- ggplot(data,aes(x=genotype,y=flowering)) + geom_point() + geom_smooth(method="lm",level=.99)
+pl + scale_x_continuous(breaks = 0:2, labels=c("0 (aa)","1 (aA)","2 (AA)")) + ylab("flowering time") + xlab("M1 genotype")
+```
+
+In standard regression with one or just a few predictors, $growth \sim \beta1*SNP1$, choose the $\beta$ that minimizes the residual sum of squares (RSS), i.e the distance from the line
+$$ RSS =  \sum_{i=1}^n (y_i - \beta_0 + \beta_1*SNP1_i )^2$$
+
+## RSS more than one predictor {.build}
+
+Instead of
+
+$$ RSS =  \sum_{i=1}^n (y_i - \beta_0 + \beta_1*SNP1_i )^2$$
+
+For more than one predictor, we can generalize as
+$$ RSS =  \sum_{i=1}^n (y_i - \beta_0 + \sum_{j=1}^{snps}\beta_j*SNP_{i,j} )^2 $$
+
+## Fitting  model (penalized regression) {.build .smaller}
+
+* Standard regression models do not perform well with many predictors
+* If we expect that most predictors will have an effect size of ~ 0 (we do in this case), use _penalized regression_
+* Penalized regression _penalizes_ models based on the number of predictors.  For example (lasso), minimize:
+$$  \sum_{i=1}^n (y_i - \beta_0 + \sum_{j=1}^{snps}\beta_j*SNP_{i,j} )^2 + \lambda \sum_{j=1}^{snps}|\beta_j| $$
+
+$$ = RSS + \lambda \sum_{j=1}^{snps}|\beta_j|$$
+
+* Where $\lambda$ is a tuning parameter
+* "Penalize" models for non-zero coefficients
+* Other versions include Ridge Regression, Elastic Net
+
+## Other multi-loci methods for predictions
+
+* Random Forests (with boosting, etc). This has outperformed penalized regression in my hands
+* Bayesian penalized regression
+  - Use priors strongly biased towards zero
+  - Horseshoe, Laplace, Student's T, etc.
+  - There are also specialized Bayesian models for genomic prediction (package BGLR)
+  
+# Example
+
+## hypocotyls
+
+* Use hypocotyl data set from Filiault and Maloof (2012)
+* 169 Arabidopsis natural accessions
+* 250,000 SNPs
+
+```{r, include=FALSE, eval=TRUE}
+## get the data
+
+#Also center the genotypes, so that the genotypes are represented as -1, 0, +1, as needed by some packages.
+
+load("pheno.geno.Rdata")
+geno.cols <- grep("^V",colnames(pheno.geno))
+geno.center <- geno*2-1
+head(geno.center[,1:10])
+head(geno[,1:10])
+all(row.names(geno.center) == row.names(pheno))
+pheno <- as.data.frame(pheno)
+```
+
+
+## bigRR
+
+* Package bigRR (big Ridge Regression) uses optimized code to fit penalized Ridge Regression models.  
+* Enables separate shrinkage parameters to be used for each marker, in a two-step process
+
+```{r, include=FALSE, eval=TRUE}
+bigRR1 <- FitBigRR(phenotype = pheno$high.RFR,genotype = geno.center)
+```
+
+## Two steps of model validation
+
+We need to test the genomic prediction models that we create:
+
+1) Compare fitted data with observations.  Can the model reproduce the observations used to create the model?
+
+2) Split the data into "training" and "test" sets.  
+
+## BigRR Fitted vs original, all data
+
+```{r, echo=FALSE, eval=TRUE}
+prediction.original <- PredictBigRR(bigRR1,geno)
+
+cor.original <- cor(pheno$high.RFR,prediction.original)
+
+pl.fit <- tibble(original=pheno$high.RFR, prediction = prediction.original) %>%
+  ggplot(aes(x=original, y=prediction)) +
+  geom_point() +
+  ggtitle(paste("Fitted vs. Original, All Data; correlation: ",round(cor.original,4)))
+
+pl.fit
+```
+
+So at least the model can reproduce the original data.
+
+## predict new observations
+
+Here create 10 training / test sets where the training sets are a randomly picked 75% of the lines and the test sets are the remaining 25%.
+
+```{r, include = FALSE, eval=FALSE}
+percent <- 75 # size of training set
+iterations <- 10
+phenotype <- pheno$high.RFR
+train.list <- lapply(1:iterations,function(x) sample(1:length(phenotype),size = round(length(phenotype)*percent/100), replace = FALSE))
+test.list <- lapply(train.list, function(x) setdiff(1:length(phenotype),x))
+
+sfInit(parallel = TRUE, cpus = 4)
+sfExport("percent","geno.center","phenotype","FitBigRR","PredictBigRR","train.list", "test.list", "bigRR", "bigRR_update", "bigRR.default", "bigRR.formula", "hat.transf")
+sfLibrary(hglm)
+CV.trials <- sfLapply(1:iterations,function(trial) {
+  fit.tmp <- FitBigRR(phenotype=phenotype[train.list[[trial]]],
+                      genotype = geno.center[train.list[[trial]],])
+  data.frame(observed=phenotype[test.list[[trial]]],
+             predicted=PredictBigRR(fit.tmp,genotype = geno.center[test.list[[trial]],]))
+})
+sfStop()
+
+corrs <- data.frame(Pearson=sapply(CV.trials,function(trial) c(Pearson=cor(trial)[1,2])))
+corrs.m <- melt(corrs,variable.name="method",value.name="correlation")
+
+pl.cor <- ggplot(corrs.m,aes(x=method,y=correlation)) +
+  geom_boxplot() +
+  ggtitle("Summary of Original vs. Predicted \n correlation in CV trials")
+
+pl.cor
+```
+
+
+```{r, include = FALSE, eval=FALSE}
+example.trial <- which(abs(corrs$Pearson-median(corrs$Pearson)) ==
+                         min(abs(corrs$Pearson-median(corrs$Pearson))))[1]
+
+pl.CV.example <- qplot(
+  x=CV.trials[[example.trial]]$observed,
+  y=CV.trials[[example.trial]]$predicted,geom="point")
+pl.CV.example <- pl.CV.example + 
+  xlab("Original") + 
+  ylab("Predicted") + ggtitle("Predicted vs. Original, median CV Trial")
+
+pl.CV.example
+
+#save.image("Mar2017_Genome_Prediction_Fits.Rdata")
+```
+
+```{r, eval=TRUE, echo=FALSE}
+load("Mar2017_Genome_Prediction_Fits.Rdata")
+grid.arrange(pl.cor,pl.CV.example,ncol=2, widths=c(3,5))
+```
+
+Not awesome, but this is a v. small sample size (169 plants)

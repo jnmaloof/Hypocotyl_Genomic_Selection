@@ -15,17 +15,29 @@ output:
 knitr::opts_chunk$set(echo = TRUE,cache = TRUE,autodep = TRUE,eval=FALSE)
 ```
 
-```{r libraries, include=FALSE, eval=TRUE, cache=FALSE}
-library(bigRR)
-library(ggplot2)
-library(magrittr)
+```{r libraries, include=TRUE, eval=TRUE, cache=FALSE}
+#library(bigRR)
+library(tidyverse)
 library(reshape2)
 library(rrBLUP)
 library(BGLR)
 library(gridExtra)
 library(snowfall)
+library(hglm)
 #load("Genome_Prediction_Fits.Rdata")
 ```
+
+```{r, eval=TRUE}
+source("bigRR/R/bigRR.R")
+source("bigRR/R/bigRR_update.R")
+source("bigRR/R/bigRR-internal.R")
+source("bigRR/R/bigRR.default.R")
+source("bigRR/R/bigRR.formula.R")
+source("bigRR/R/plot.bigRR.R")
+source("bigRR/R/print.bigRR.R")
+source("bigRR/R/hat.transf.R")
+```
+
 
 ```{r, include=FALSE, eval=TRUE, cache=TRUE}
 
@@ -220,8 +232,10 @@ prediction.original <- PredictBigRR(bigRR1,geno)
 
 cor.original <- cor(pheno$high.RFR,prediction.original)
 
-pl.fit <- qplot(x = pheno$high.RFR,y=prediction.original,geom = "point")
-pl.fit <- pl.fit + xlab("Original") + ylab("Fitted") + ggtitle(paste("Fitted vs. Original, All Data; correlation: ",round(cor.original,4)))
+pl.fit <- tibble(original=pheno$high.RFR, prediction = prediction.original) %>%
+  ggplot(aes(x=original, y=prediction)) +
+  geom_point() +
+  ggtitle(paste("Fitted vs. Original, All Data; correlation: ",round(cor.original,4)))
 
 pl.fit
 ```
@@ -230,18 +244,20 @@ So at least the model can reproduce the origninal data.
 
 ## predict new observations
 
-Here create 100 training / test sets where the training sets are a randomly picked 75% of the lines and the test sets are the remaining 25%.
+Here create 10 training / test sets where the training sets are a randomly picked 75% of the lines and the test sets are the remaining 25%.
+
+Although this is called "Cross Validation" it isn't really a true cross validation. Accomplishes the same goal, more or less.
 
 ```{r, include = FALSE, eval=FALSE}
 percent <- 75 # size of training set
-iterations <- 100
+iterations <- 10
 phenotype <- pheno$high.RFR
 train.list <- lapply(1:iterations,function(x) sample(1:length(phenotype),size = round(length(phenotype)*percent/100), replace = FALSE))
 test.list <- lapply(train.list, function(x) setdiff(1:length(phenotype),x))
 
 sfInit(parallel = TRUE, cpus = 4)
-sfLibrary(bigRR)
-sfExport("percent","geno.center","phenotype","FitBigRR","PredictBigRR","train.list", "test.list")
+sfExport("percent","geno.center","phenotype","FitBigRR","PredictBigRR","train.list", "test.list", "bigRR", "bigRR_update", "bigRR.default", "bigRR.formula", "hat.transf")
+sfLibrary(hglm)
 CV.trials <- sfLapply(1:iterations,function(trial) {
   fit.tmp <- FitBigRR(phenotype=phenotype[train.list[[trial]]],
                       genotype = geno.center[train.list[[trial]],])
@@ -257,6 +273,11 @@ pl.cor <- ggplot(corrs.m,aes(x=method,y=correlation)) +
   geom_boxplot() +
   ggtitle("Summary of Original vs. Predicted \n correlation in CV trials")
 
+pl.cor
+```
+
+
+```{r, include = FALSE, eval=FALSE}
 example.trial <- which(abs(corrs$Pearson-median(corrs$Pearson)) ==
                          min(abs(corrs$Pearson-median(corrs$Pearson))))[1]
 
@@ -266,7 +287,10 @@ pl.CV.example <- qplot(
 pl.CV.example <- pl.CV.example + 
   xlab("Original") + 
   ylab("Predicted") + ggtitle("Predicted vs. Original, median CV Trial")
-save.image("Mar2017_Genome_Prediction_Fits.Rdata")
+
+pl.CV.example
+
+#save.image("Mar2017_Genome_Prediction_Fits.Rdata")
 ```
 
 ```{r, eval=TRUE, echo=FALSE}
